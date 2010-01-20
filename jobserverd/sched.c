@@ -470,7 +470,9 @@ int		 i;
 		if (!(job->job_flags & JOB_MAINTENANCE)) {
 			if (job->job_flags & JOB_ENABLED) {
 				if (sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
-					job_set_maintenance(job, "Restarting too quickly");
+					if (job_set_maintenance(job, "Restarting too quickly") == -1)
+						logm(LOG_WARNING, "job %ld: could not set maintenance mode",
+								(long) job->job_id);
 				} else {
 					if (sched_start(job->job_id) == -1)
 						logm(LOG_WARNING, "job %ld: restart failed",
@@ -583,7 +585,9 @@ job_t	*job;
 
 	if ((job->job_flags & JOB_ENABLED) &&
 	    sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
-		job_set_maintenance(job, "Restarting too quickly");
+		if (job_set_maintenance(job, "Restarting too quickly") == -1)
+			logm(LOG_WARNING, "job %ld: could not set maintenance",
+					(long) job->job_id);
 		free_job(job);
 		return;
 	}

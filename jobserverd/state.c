@@ -1152,7 +1152,7 @@ char const *const names[] = {
 		i++;
 	}
 
-	snprintf(res, sizeof res, "%.2lf%s", d, names[i]);
+	(void) snprintf(res, sizeof res, "%.2lf%s", d, names[i]);
 	return res;
 }
 
@@ -1165,32 +1165,32 @@ static char	res[64];
 	
 	bzero(res, sizeof(res));
 	if (n >= (60 * 60 * 24 * 7)) {
-		snprintf(t, sizeof t, "%dw", (int) (n / (60 * 60 * 24 * 7)));
-		strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof t, "%dw", (int) (n / (60 * 60 * 24 * 7)));
+		(void) strlcat(res, t, sizeof(res));
 		n %= (60 * 60 * 24 * 7);
 	}
 
 	if (n >= (60 * 60 * 24)) {
-		snprintf(t, sizeof t, "%dd", (int) (n / (60 * 60 * 24)));
-		strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof t, "%dd", (int) (n / (60 * 60 * 24)));
+		(void) strlcat(res, t, sizeof(res));
 		n %= (60 * 60 * 24);
 	}
 
 	if (n >= (60 * 60)) {
-		snprintf(t, sizeof t, "%dh", (int) (n / (60 * 60)));
-		strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof t, "%dh", (int) (n / (60 * 60)));
+		(void) strlcat(res, t, sizeof(res));
 		n %= (60 * 60);
 	}
 
 	if (n >= 60) {
-		snprintf(t, sizeof t, "%dm", (int) (n / 60));
-		strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof t, "%dm", (int) (n / 60));
+		(void) strlcat(res, t, sizeof(res));
 		n %= 60;
 	}
 
 	if (n > 0 || !strlen(res)) {
-		snprintf(t, sizeof t, "%ds", (int) n);
-		strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof t, "%ds", (int) n);
+		(void) strlcat(res, t, sizeof(res));
 	}
 	return res;
 }
@@ -1209,7 +1209,7 @@ char const *names = "KMGTPEZB";
 		i++;
 	}
 
-	snprintf(res, sizeof res, "%.2lf%c", d, names[i]);
+	(void) snprintf(res, sizeof res, "%.2lf%c", d, names[i]);
 	return res;
 }
 

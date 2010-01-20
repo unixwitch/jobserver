@@ -28,6 +28,7 @@
 #include	<alloca.h>
 #include	<grp.h>
 #include	<rctl.h>
+#include	<strings.h>
 
 #include	"execute.h"
 #include	"jobserver.h"

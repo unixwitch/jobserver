@@ -55,6 +55,7 @@ static int	c_clear(int, char **);
 static int	c_limit(int, char **);
 static int	c_unlimit(int, char **);
 static int	c_quota(int, char **);
+static int	c_start(int, char **);
 
 static struct {
 	char const	*cmd;
@@ -79,6 +80,7 @@ static struct {
 	{ "limit",	c_limit },
 	{ "unlimit",	c_unlimit },
 	{ "quota",	c_quota },
+	{ "start",	c_start },
 };
 
 static int debug;
@@ -155,7 +157,10 @@ char const *u_quota =
 "         Set or change a quota value.  Recognised quota values:\n"
 "\n"
 "           jobs-per-user     Maximum number of jobs a single user may add.\n"; 
-
+char const *u_start =
+"       job [-D] start <id>\n"
+"\n"
+"         Cause a scheduled job to be started immediately.\n";
 static void
 usage()
 {
@@ -171,6 +176,7 @@ usage()
 	(void) fprintf(stderr, "%s\n", u_clear);
 	(void) fprintf(stderr, "%s\n", u_limit);
 	(void) fprintf(stderr, "%s\n", u_quota);
+	(void) fprintf(stderr, "%s\n", u_start);
 	(void) fprintf(stderr, 
 "Global options:\n"
 "      -D      Enable debug mode.\n"
@@ -448,6 +454,21 @@ c_enable (argc, argv)
 	}
 
 	simple_command("CHNG %s ENABLED=1", argv[1]);
+	return 0;
+}
+
+int
+c_start(argc, argv)
+	int argc;
+	char **argv;
+{
+	if (argc != 2) {
+		fprintf(stderr, "start: wrong number of arguments\n\n");
+		fprintf(stderr, "%s", u_endis);
+		return 1;
+	}
+
+	simple_command("STRT %s", argv[1]);
 	return 0;
 }
 

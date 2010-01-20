@@ -175,4 +175,15 @@ char const	*format_rctl(rctl_qty_t value, int type);
  */
 int	job_set_project(job_t *, char const *project);
 
+/*
+ * Count the number of jobs created by a given user.
+ */
+int	njobs_for_user(uid_t);
+
+/*
+ * Fetch/change quotas.
+ */
+int	quota_get_jobs_per_user(void);
+int	quota_set_jobs_per_user(int);
+
 #endif	/* !STATE_H */

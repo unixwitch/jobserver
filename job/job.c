@@ -54,6 +54,7 @@ static int	c_unschedule(int, char **);
 static int	c_clear(int, char **);
 static int	c_limit(int, char **);
 static int	c_unlimit(int, char **);
+static int	c_quota(int, char **);
 
 static struct {
 	char const	*cmd;
@@ -77,6 +78,7 @@ static struct {
 	{ "clear",	c_clear },
 	{ "limit",	c_limit },
 	{ "unlimit",	c_unlimit },
+	{ "quota",	c_quota },
 };
 
 static int debug;
@@ -141,13 +143,18 @@ char const *u_unschedule =
 "\n"
 "         Unschedule a previously scheduled job.\n";
 char const *u_limit =
-"       job [-D] limit <job> <control>\n"
-"       job [-D] limit <job> <control> <value>\n"
+"       job [-D] limit <job> <control> [value]\n"
 "       job [-D] unlimit <job> <control>\n"
 "\n"
 "         View, set or clear the resource control <control> for the specified\n"
 "         <job>\n"
 "\n";
+char const *u_quota =
+"       job [-D] quota <quota> [value]\n"
+"\n"
+"         Set or change a quota value.  Recognised quota values:\n"
+"\n"
+"           jobs-per-user     Maximum number of jobs a single user may add.\n"; 
 
 static void
 usage()
@@ -163,6 +170,7 @@ usage()
 	(void) fprintf(stderr, "%s\n", u_unschedule);
 	(void) fprintf(stderr, "%s\n", u_clear);
 	(void) fprintf(stderr, "%s\n", u_limit);
+	(void) fprintf(stderr, "%s\n", u_quota);
 	(void) fprintf(stderr, 
 "Global options:\n"
 "      -D      Enable debug mode.\n"
@@ -498,6 +506,27 @@ c_unlimit(argc, argv)
 	}
 
 	simple_command("CLRR %s %s", argv[1], argv[2]);
+	
+	return 0;
+}
+
+int
+c_quota(argc, argv)
+	int argc;
+	char **argv;
+{
+	if (argc < 2 || argc > 3) {
+		fprintf(stderr, "quota: wrong number of arguments\n\n");
+		fprintf(stderr, "%s", u_quota);
+		return 1;
+	}
+
+	if (argc == 2) {
+	reply_t	*rep;
+		rep = simple_command("CONF %s", argv[1]);
+		printf("%s = %s\n", argv[1], rep->text);
+	} else
+		simple_command("CONF %s %s", argv[1], argv[2]);
 	
 	return 0;
 }

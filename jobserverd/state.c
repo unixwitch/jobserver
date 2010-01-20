@@ -241,6 +241,94 @@ job_id_t	 id;
 	return id - 1;
 }
 
+int 
+quota_get_jobs_per_user()
+{
+DBT		 key, data;
+DB_TXN		*txn;
+int		 err;
+int		 njobs;
+
+	assert(env);
+	assert(db_config);
+
+	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
+		logm(LOG_ERR, "quota_get_njobs_per_user: txn start failed: %s",
+				db_strerror(errno));
+		return -1;
+	}
+
+	bzero(&key, sizeof key);
+	bzero(&data, sizeof data);
+
+	key.data = "quota_jobs_per_user";
+	key.size = strlen(key.data);
+
+	data.data = &njobs;
+	data.size = data.ulen = sizeof(njobs);
+	data.flags = DB_DBT_USERMEM;
+
+	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
+		(void) txn->abort(txn);
+
+		if (err != DB_NOTFOUND) {
+			logm(LOG_ERR, "quota_get_jobs_per_user: db get failed: %s",
+					db_strerror(err));
+			return -1;
+		}
+
+		return 0;
+	}
+
+	(void) txn->abort(txn);
+	return njobs;
+}
+
+int 
+quota_set_jobs_per_user(n)
+	int	n;
+{
+DBT		 key, data;
+DB_TXN		*txn;
+int		 err;
+
+	assert(env);
+	assert(db_config);
+
+	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
+		logm(LOG_ERR, "quota_set_njobs_per_user: txn start failed: %s",
+				db_strerror(errno));
+		return -1;
+	}
+
+	bzero(&key, sizeof key);
+	bzero(&data, sizeof data);
+
+	key.data = "quota_jobs_per_user";
+	key.size = strlen(key.data);
+
+	data.data = &n;
+	data.size = data.ulen = sizeof(n);
+	data.flags = DB_DBT_USERMEM;
+
+	if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
+		(void) txn->abort(txn);
+
+		logm(LOG_ERR, "quota_set_jobs_per_user: db put failed: %s",
+				db_strerror(err));
+		return -1;
+	}
+
+	if ((err = txn->commit(txn, 0)) != 0) {
+		(void) txn->abort(txn);
+
+		logm(LOG_ERR, "quota_set_jobs_per_user: commit failed: %s",
+				db_strerror(err));
+		return -1;
+	}
+
+	return 0;
+}
 job_t *
 create_job(user, arg)
 	uid_t		 user;
@@ -1262,4 +1350,24 @@ char	*np = NULL;
 err:
 	free(np);
 	return -1;
+}
+
+/*ARGSUSED*/
+static int
+_njobs_for_user_callback(job, udata)
+	job_t	*job;
+	void	*udata;
+{
+	(*(int *)udata)++;
+	return 0;
+}
+
+int
+njobs_for_user(user)
+	uid_t	user;
+{
+int	n = 0;
+	if (job_enumerate_user(user, _njobs_for_user_callback, &n) == -1)
+		return -1;
+	return n;
 }

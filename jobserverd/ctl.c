@@ -62,6 +62,7 @@ void	c_setr(ctl_client_t *, char *);
 void	c_getr(ctl_client_t *, char *);
 void	c_lisr(ctl_client_t *, char *);
 void	c_clrr(ctl_client_t *, char *);
+void	c_conf(ctl_client_t *, char *);
 
 static void ctl_client_accept(int, fde_evt_type_t, void *);
 static void ctl_readline(int, char *, size_t, void *);
@@ -88,6 +89,7 @@ static struct {
 	{ "GETR",	RUNNING,	c_getr },	/* Get rctl	*/
 	{ "LISR",	RUNNING,	c_lisr },	/* List rctls	*/
 	{ "CLRR",	RUNNING,	c_clrr },	/* Clear rctl	*/
+	{ "CONF",	RUNNING,	c_conf },	/* Configure	*/
 };
 
 static ctl_client_t *clients;
@@ -446,6 +448,7 @@ c_crte(client, line)
 job_t	*job;
 char	*name;
 char	*p;
+int	 quota;
 
 	if ((name = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
@@ -465,6 +468,13 @@ char	*p;
 	for (p = name; *p; ++p) {
 		if (*p <= 0x20 || *p == 0x7f) {
 			(void) ctl_printf(client, "500 Job name contains illegal characters.\r\n");
+			return;
+		}
+	}
+
+	if (quota = quota_get_jobs_per_user()) {
+		if (njobs_for_user(client->cc_uid) >= quota) {
+			(void) ctl_printf(client, "500 Job quota exceeded.\r\n");
 			return;
 		}
 	}
@@ -1081,6 +1091,55 @@ int		 i;
 
 err:
 	free_job(job);
+}
+
+void
+c_conf(client, line)
+	ctl_client_t	*client;
+	char		*line;
+{
+char	*opt, *value;
+
+	if (!client->cc_admin) {
+		(void) ctl_printf(client, "500 Permission denied.\r\n");
+		return;
+	}
+
+	if ((opt = next_word(&line)) == NULL) {
+		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+		return;
+	}
+
+	value = next_word(&line);
+
+	if (!strcmp(opt, "maxjobs")) {
+
+		if (value) {
+		int	 njobs;
+		char	*endp;
+
+			njobs = strtol(value, &endp, 10);
+			if (endp != (value + strlen(value)) || njobs < 0) {
+				(void) ctl_printf(client, "500 Invalid format.\r\n");
+				return;
+			}
+
+			if (quota_set_jobs_per_user(njobs) == -1)
+				(void) ctl_printf(client, "500 Cannot set quota.\r\n");
+			else
+				(void) ctl_printf(client, "200 OK.\r\n");
+		} else {
+		int	njobs;
+			if ((njobs = quota_get_jobs_per_user()) == -1)
+				(void) ctl_printf(client, "500 Cannot get quota.\r\n");
+			else
+				(void) ctl_printf(client, "200 %d\r\n", njobs);
+		}
+
+		return;
+	} else {
+		(void) ctl_printf(client, "500 Invalid parameter.\r\n");
+	}
 }
 
 void

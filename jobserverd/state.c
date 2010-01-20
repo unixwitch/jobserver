@@ -1329,7 +1329,7 @@ char	*np = NULL;
 	if ((job = find_job(id)) == NULL)
 		return -1;
 
-	if (proj && *proj) {
+	if (proj && *proj && strcmp(proj, "default")) {
 		if ((np = strdup(proj)) == NULL) {
 			logm(LOG_ERR, "job_set_project: out of memory");
 			goto err;

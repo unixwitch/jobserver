@@ -294,7 +294,7 @@ unserialise_job(job, buf, sz)
 {
 nvlist_t	*nvl = NULL;
 int32_t		 ct, ca1, ca2, uid;
-char		*start = NULL, *stop = NULL, *name = NULL;
+char		*start = NULL, *stop = NULL, *name = NULL, *proj = NULL;
 uchar_t		*rctls;
 uint_t		 nrctls;
 
@@ -309,7 +309,7 @@ uint_t		 nrctls;
 		goto err;
 	}
 
-	if (	nvlist_lookup_int32(nvl, "id", &(*job)->job_id) == -1 ||
+	if (	nvlist_lookup_int32(nvl, "id", &(*job)->job_id)  ||
 		nvlist_lookup_int32(nvl, "user", &uid) == -1 ||
 		nvlist_lookup_string(nvl, "name", &name) == -1 ||
 		nvlist_lookup_string(nvl, "start", &start) == -1 ||
@@ -338,6 +338,13 @@ uint_t		 nrctls;
 		(*job)->job_nrctls = 0;
 	}
 
+	if (nvlist_lookup_string(nvl, "project", &proj) == 0) {
+		if (((*job)->job_project = strdup(proj)) == NULL) {
+			logm(LOG_ERR, "job_update: out of memory");
+			goto err;
+		}
+	}
+
 	(*job)->job_user = uid;
 	(*job)->job_schedule.cron_type = ct;
 	(*job)->job_schedule.cron_arg1 = ca1;
@@ -356,8 +363,9 @@ uint_t		 nrctls;
 
 err:
 	if (nvl)
-		(void) nvlist_free(nvl);
+		nvlist_free(nvl);
 
+	free(proj);
 	free_job(*job);
 	return -1;
 }
@@ -664,6 +672,13 @@ int32_t		 user = job->job_user;
 
 		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
 		goto err;
+	}
+
+	if (job->job_project) {
+		if (nvlist_add_string(nvl, "project", job->job_project) != 0) {
+			logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
+			goto err;
+		}
 	}
 
 	if (nvlist_pack(nvl, &xbuf, &size, NV_ENCODE_NATIVE, 0) == -1) {
@@ -1301,4 +1316,41 @@ format_rctl(qty, type)
 	default:
 		return _format_count(qty);
 	}
+}
+
+int
+job_set_project(id, proj)
+	job_id_t	 id;
+	char const	*proj;
+{
+job_t	*job = NULL;
+char	*np = NULL;
+
+	if ((job = find_job(id)) == NULL)
+		return -1;
+
+	if (proj && *proj) {
+		if ((np = strdup(proj)) == NULL) {
+			logm(LOG_ERR, "job_set_project: out of memory");
+			goto err;
+		}
+
+		free(job->job_project);
+		job->job_project = np;
+	} else {
+		free(job->job_project);
+		job->job_project = NULL;
+	}
+
+	if (job_update(job) == -1) {
+		logm(LOG_ERR, "job_set_project: job_updated failed");
+		goto err;
+	}
+
+	return 0;
+
+err:
+	free(np);
+	free_job(job);
+	return -1;
 }

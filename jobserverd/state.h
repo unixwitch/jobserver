@@ -81,6 +81,7 @@ typedef struct {
 	cron_t		 job_schedule;
 	job_rctl_t	*job_rctls;
 	int		 job_nrctls;
+	char		*job_project;
 } job_t;
 
 int	 statedb_init(void);
@@ -168,5 +169,10 @@ int		job_clear_rctl(job_id_t job, char const *name);
 int		 is_valid_rctl(char const *name);
 int		 get_rctl_type(char const *name);
 char const	*format_rctl(rctl_qty_t value, int type);
+
+/*
+ * Set the project for a job.
+ */
+int	job_set_project(job_id_t id, char const *project);
 
 #endif	/* !STATE_H */

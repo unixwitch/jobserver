@@ -249,6 +249,20 @@ int		 lwfd;
 			exit(1);
 		}
 
+		if (job->job_project) {
+			if (inproj(pwd->pw_name, job->job_project, nssbuf, sizeof(nssbuf))) {
+				/*
+				 * Don't error out here... it might be some kind of transient
+				 * issue.
+				 */
+				if (setproject(job->job_project, pwd->pw_name, TASK_NORMAL) != 0)
+					(void) printf("[ setproject: %s ]\n", strerror(errno));
+			} else {
+				(void) printf("[ Warning: user \"%s\" is not a member of project \"%s\" ]\n",
+						pwd->pw_name, job->job_project);
+			}
+		}
+					
 		if (initgroups(pwd->pw_name, pwd->pw_gid) == -1) {
 			(void) printf("[ initgroups: %s ]\n", strerror(errno));
 			(void) printf("[ Job start aborted. ]\n");

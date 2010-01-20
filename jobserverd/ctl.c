@@ -795,6 +795,10 @@ char const	*state, *rstate;
 	(void) ctl_printf(client, "205 :%s\r\n", rstate);
 	(void) ctl_printf(client, "206 :%s\r\n", job->job_start_method);
 	(void) ctl_printf(client, "207 :%s\r\n", job->job_stop_method);
+	if (job->job_project)
+		(void) ctl_printf(client, "209 :%s\r\n", job->job_project);
+	else
+		(void) ctl_printf(client, "209 :default\r\n");
 	if (job->job_flags & JOB_SCHEDULED)
 		(void) ctl_printf(client, "208 :%s\r\n", cron_to_string(&job->job_schedule));
 	else
@@ -858,6 +862,11 @@ job_t		*job = NULL;
 		} else if (!strcmp(key, "NAME")) {
 			if (job_set_name(id, value) == -1) {
 				(void) ctl_printf(client, "500 Could not change job name.\r\n");
+				goto err;
+			}
+		} else if (!strcmp(key, "PROJECT")) {
+			if (job_set_project(id, value) == -1) {
+				(void) ctl_printf(client, "500 Could not change project.\r\n");
 				goto err;
 			}
 		} else if (!strcmp(key, "ENABLED")) {

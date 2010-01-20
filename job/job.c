@@ -579,6 +579,7 @@ reply_t	*rep;
 		case 206: (void) printf("start method: %s\n", rep->text); break;
 		case 207: (void) printf(" stop method: %s\n", rep->text); break;
 		case 208: (void) printf("    schedule: %s\n", rep->text); break;
+		case 209: (void) printf("     project: %s\n", rep->text); break;
 		}
 
 		free_reply(rep);
@@ -605,6 +606,8 @@ reply_t	*rep;
 		key = "STOP";
 	else if (!strcmp(prop, "name"))
 		key = "NAME";
+	else if (!strcmp(prop, "project"))
+		key = "PROJECT";
 	else
 		return -1;
 

@@ -384,7 +384,7 @@ int nents = 0;
 
 			uid = atoi(ents[nents].user);
 			if ((pwd = getpwuid(uid)) != NULL)
-				ents[nents].user = pwd->pw_name;
+				ents[nents].user = strdup(pwd->pw_name);
 
 			if ((i = strlen(vec[0])) > id_w) id_w = i + 2;
 			if ((i = strlen(ents[nents].user)) > user_w) user_w = i + 2;

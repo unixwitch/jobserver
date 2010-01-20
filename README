@@ -7,15 +7,18 @@ The jobserver is written and tested on Solaris 10, but it should also work on
 OpenSolaris.  It will not work on any other operating systems.
 
 The Sun Studio compiler is required to build.  It is tested with 12u1, but
-should work with other versions.
+should work with other versions.  Berkeley DB version 4.x is required.  4.7 is
+the tested version, but any should work.
 
 To build and install:
 
+ $ vi jobserverd/Makefile
+ (change paths as needed)
  $ make
  $ su
  # make install
  # svccfg import /var/svc/manifest/system/jobserver.xml
- # svccfg enable jobserver
+ # svcadm enable jobserver
 
 The jobserver will take care of creating its own database in /var/jobserver,
 and no configuration is required to use it.

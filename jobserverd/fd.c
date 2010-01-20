@@ -210,11 +210,13 @@ fde_t	*e;
 	if (ev->portev_events & POLLIN) {
 		assert((e->fde_flags & FDE_READ) && e->fde_read_callback);
 		e->fde_read_callback(e->fde_fd, FDE_READ, e->fde_udata);
+		e = &fd_table[ev->portev_object];
 	}
 
 	if (ev->portev_events & POLLOUT) {
 		assert((e->fde_flags & FDE_WRITE) && e->fde_write_callback);
 		e->fde_write_callback(e->fde_fd, FDE_WRITE, e->fde_udata);
+		e = &fd_table[ev->portev_object];
 	}
 
 	/*

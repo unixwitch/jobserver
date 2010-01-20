@@ -415,12 +415,14 @@ uint_t		 nrctls;
 	}
 
 	if (nvlist_lookup_byte_array(nvl, "rctls", &rctls, &nrctls) == 0) {
+		/*LINTED*/
 		(*job)->job_nrctls = nrctls / sizeof(job_rctl_t);
 		if (((*job)->job_rctls = calloc(nrctls, sizeof(job_rctl_t))) == NULL) {
 			logm(LOG_ERR, "job_update: out of memory");
 			goto err;
 		}
 
+		/*LINTED*/
 		bcopy(rctls, (*job)->job_rctls, sizeof(job_rctl_t) * nrctls);
 	} else {
 		(*job)->job_nrctls = 0;
@@ -712,6 +714,7 @@ int32_t		 user = job->job_user;
 
 	if (job->job_nrctls && nvlist_add_byte_array(nvl, "rctls", 
 		(u_char *) job->job_rctls,
+		/*LINTED*/
 		sizeof(job_rctl_t) * job->job_nrctls) != 0) {
 
 		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
@@ -1211,7 +1214,7 @@ get_rctl_type(name)
 	char const	*name;
 {
 rctlblk_t	*blk = alloca(rctlblk_size());
-int		 fl;
+u_int		 fl;
 char		 rname[64];
 	(void) snprintf(rname, sizeof rname, "process.%s", name);
 	if (getrctl(rname, NULL, blk, RCTL_FIRST) == -1)
@@ -1253,30 +1256,35 @@ static char	res[64];
 	
 	bzero(res, sizeof(res));
 	if (n >= (60 * 60 * 24 * 7)) {
+		/*LINTED*/
 		(void) snprintf(t, sizeof t, "%dw", (int) (n / (60 * 60 * 24 * 7)));
 		(void) strlcat(res, t, sizeof(res));
 		n %= (60 * 60 * 24 * 7);
 	}
 
 	if (n >= (60 * 60 * 24)) {
+		/*LINTED*/
 		(void) snprintf(t, sizeof t, "%dd", (int) (n / (60 * 60 * 24)));
 		(void) strlcat(res, t, sizeof(res));
 		n %= (60 * 60 * 24);
 	}
 
 	if (n >= (60 * 60)) {
+		/*LINTED*/
 		(void) snprintf(t, sizeof t, "%dh", (int) (n / (60 * 60)));
 		(void) strlcat(res, t, sizeof(res));
 		n %= (60 * 60);
 	}
 
 	if (n >= 60) {
+		/*LINTED*/
 		(void) snprintf(t, sizeof t, "%dm", (int) (n / 60));
 		(void) strlcat(res, t, sizeof(res));
 		n %= 60;
 	}
 
 	if (n > 0 || !strlen(res)) {
+		/*LINTED*/
 		(void) snprintf(t, sizeof t, "%ds", (int) n);
 		(void) strlcat(res, t, sizeof(res));
 	}

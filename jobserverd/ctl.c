@@ -1115,6 +1115,7 @@ char	*opt, *value;
 		int	 njobs;
 		char	*endp;
 
+			/*LINTED*/
 			njobs = strtol(value, &endp, 10);
 			if (endp != (value + strlen(value)) || njobs < 0) {
 				(void) ctl_printf(client, "500 Invalid format.\r\n");
@@ -1148,7 +1149,6 @@ char		*arg, *endp = NULL;
 job_id_t	 id;
 job_t		*job = NULL;
 char		*ctl;
-u_longlong_t	 value = 0;
 
 	if ((arg = next_word(&line)) == NULL ||
 	    (ctl = next_word(&line)) == NULL) {

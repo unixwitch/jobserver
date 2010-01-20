@@ -755,3 +755,20 @@ sjob_t	*sjob;
 	if (ev_cancel(sjob->sjob_timer) == -1)
 		logm(LOG_WARNING, "sched_job_unscheduled: warning: ev_cancel failed");
 }
+
+int
+job_access(job, user, access)
+	job_t	*job;
+	uid_t	 user;
+	int	 access;
+{
+	/*
+	 * Currently, we just allow users access to their own jobs and disallow
+	 * access to all other users.
+	 */
+	if (job->job_user == user)
+		return 1;
+
+	/* Should support ACLs here... */
+	return 0;
+}

@@ -186,4 +186,14 @@ int	njobs_for_user(uid_t);
 int	quota_get_jobs_per_user(void);
 int	quota_set_jobs_per_user(int);
 
+/*
+ * Check if a particular user has access to a job.
+ */
+#define JOB_VIEW	0x1	/* View information about a job */
+#define JOB_MODIFY	0x2	/* Change a job's definition */
+#define JOB_DELETE	0x4	/* Delete a job */
+#define JOB_STARTSTOP	0x8	/* Enable or disable a job */
+
+int	job_access(job_t *, uid_t, int);
+
 #endif	/* !STATE_H */

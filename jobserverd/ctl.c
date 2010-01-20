@@ -522,7 +522,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_DELETE)) {
 		(void) ctl_printf(client, "503 Permission denied.\r\n");
 		goto err;
 	}
@@ -565,6 +565,9 @@ list_callback(job, udata)
 {
 ctl_client_t	*client = udata;
 char const	*state, *rstate;
+
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_VIEW))
+		return 0;
 
 	if (job->job_flags & JOB_SCHEDULED)
 		state = "scheduled";
@@ -613,18 +616,10 @@ c_list(client, line)
 
 	(void) ctl_printf(client, "200 Job list follows.\r\n");
 
-	if (client->cc_admin) {
-		if (job_enumerate(list_callback, client) == -1) {
-			logm(LOG_WARNING, "c_list: job_enumerate failed");
-			(void) ctl_printf(client, "500 Internal server error.\r\n");
-			return;
-		}
-	} else {
-		if (job_enumerate_user(client->cc_uid, list_callback, client) == -1) {
-			logm(LOG_WARNING, "c_list: job_enumerate_user failed");
-			(void) ctl_printf(client, "500 Internal server error.\r\n");
-			return;
-		}
+	if (job_enumerate(list_callback, client) == -1) {
+		logm(LOG_WARNING, "c_list: job_enumerate failed");
+		(void) ctl_printf(client, "500 Internal server error.\r\n");
+		return;
 	}
 
 	(void) ctl_printf(client, "202 End of job list.\r\n");
@@ -655,7 +650,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_STARTSTOP)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -699,7 +694,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_STARTSTOP)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -744,7 +739,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_STARTSTOP)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -795,7 +790,7 @@ char const	*state, *rstate;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_VIEW)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -874,7 +869,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_MODIFY)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -980,7 +975,7 @@ rctl_qty_t	 value;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_MODIFY)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -1030,7 +1025,7 @@ u_longlong_t	 value = 0;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_MODIFY)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -1077,7 +1072,7 @@ int		 i;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_VIEW)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -1173,7 +1168,7 @@ u_longlong_t	 value = 0;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_MODIFY)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -1213,7 +1208,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (!client->cc_admin && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_STARTSTOP)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}

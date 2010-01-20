@@ -19,6 +19,9 @@
 #include	<ucred.h>
 #include	<xti.h>
 #include	<strings.h>
+#include	<pwd.h>
+#include	<auth_attr.h>
+#include	<secdb.h>
 
 #include	"fd.h"
 #include	"ctl.h"
@@ -27,6 +30,8 @@
 #include	"sched.h"
 
 #define PROTOCOL_VERSION 1
+#define ADMIN_AUTH_NAME "solaris.jobs.admin"
+#define USER_AUTH_NAME "solaris.jobs.user"
 
 typedef enum {
 	ANY_STATE = -1,
@@ -39,6 +44,8 @@ typedef struct ctl_client {
 	int		cc_fd;
 	uid_t		cc_uid;
 	ctl_state_t	cc_state;
+	int		cc_admin;
+	int		cc_user;
 } ctl_client_t;
 
 void	c_helo(ctl_client_t *, char *);
@@ -164,6 +171,8 @@ ctl_client_t	*c = NULL;
 		nclients++;
 	}
 
+	bzero(c, sizeof(*c));
+
 	c->cc_fd = fd;
 	c->cc_uid = (uid_t) -1;
 	c->cc_state = WAIT_HELO;
@@ -224,6 +233,7 @@ ctl_client_t	*c;
 ucred_t		*ucred = NULL;
 uid_t		 uid;
 struct t_call	*callp;
+struct passwd	*pwd;
 
 	assert(type == FDE_READ);
 
@@ -299,6 +309,17 @@ struct t_call	*callp;
 	}
 
 	c->cc_uid = uid;
+
+	if ((pwd = getpwuid(uid)) == NULL) {
+		logm(LOG_ERR, "ctl_client_accept: uid %ld not found?",
+				(long) uid);
+		goto err;
+	}
+
+	if (chkauthattr(ADMIN_AUTH_NAME, pwd->pw_name))
+		c->cc_admin = 1;
+	else if (chkauthattr(USER_AUTH_NAME, pwd->pw_name))
+		c->cc_user = 1;
 
 	if (fd_printf(newfd, "200 Jobserver %s at your service.\r\n", VERSION) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: fd_printf(%d): %s",
@@ -386,6 +407,12 @@ char	*version;
 	if (strcmp(version, "1")) {
 		(void) ctl_printf(client, "500- HELO: Unsupported protocol version %s.\r\n", version);
 		(void) ctl_printf(client, "500 I support protocol version %d.\r\n", PROTOCOL_VERSION);
+		return;
+	}
+
+	if (!client->cc_user && !client->cc_admin) {
+		(void) ctl_printf(client, "500 Permission denied.\r\n");
+		ctl_close(client);
 		return;
 	}
 
@@ -483,7 +510,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "503 Permission denied.\r\n");
 		goto err;
 	}
@@ -574,7 +601,7 @@ c_list(client, line)
 
 	(void) ctl_printf(client, "200 Job list follows.\r\n");
 
-	if (client->cc_uid == 0) {
+	if (client->cc_admin) {
 		if (job_enumerate(list_callback, client) == -1) {
 			logm(LOG_WARNING, "c_list: job_enumerate failed");
 			(void) ctl_printf(client, "500 Internal server error.\r\n");
@@ -616,7 +643,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -660,7 +687,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -705,7 +732,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -756,7 +783,7 @@ char const	*state, *rstate;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -835,7 +862,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -941,7 +968,7 @@ rctl_qty_t	 value;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -991,7 +1018,7 @@ u_longlong_t	 value = 0;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -1038,7 +1065,7 @@ int		 i;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}
@@ -1085,7 +1112,7 @@ u_longlong_t	 value = 0;
 		goto err;
 	}
 
-	if (client->cc_uid != 0 && client->cc_uid != job->job_user) {
+	if (!client->cc_admin && client->cc_uid != job->job_user) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
 		goto err;
 	}

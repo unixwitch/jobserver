@@ -9,7 +9,7 @@ CFLAGS		= -xO0 -g -xc99=%none
 LDFLAGS		= -L/opt/ts/lib -R/opt/ts/lib
 #LINTFLAGS	= -a -s -m -u -errchk=%all -Ncheck=%all -Nlevel=4 -errtags=yes -errsecurity=core
 LINTFLAGS	= -asxmu -errchk -errtags=yes -Xc99=none -errsecurity=core
-LIBS		= -lnsl -lrt -lproject -lcontract -lnvpair -lcmd -ldb-4.7
+LIBS		= -lnsl -lrt -lproject -lcontract -lnvpair -lcmd -lsecdb -ldb-4.7
 
 OBJS	= main.o fd.o ctl.o buffer.o state.o sched.o event.o execute.o
 SRCS	= $(OBJS:.o=.c)

@@ -298,7 +298,7 @@ char		*start = NULL, *stop = NULL, *name = NULL, *proj = NULL;
 uchar_t		*rctls;
 uint_t		 nrctls;
 
-	if (nvlist_unpack(buf, sz, &nvl, 0) == -1) {
+	if (nvlist_unpack(buf, sz, &nvl, 0)) {
 		logm(LOG_ERR, "unserialise_job: cannot unserialise: %s",
 				strerror(errno));
 		goto err;
@@ -309,18 +309,18 @@ uint_t		 nrctls;
 		goto err;
 	}
 
-	if (	nvlist_lookup_int32(nvl, "id", &(*job)->job_id)  ||
-		nvlist_lookup_int32(nvl, "user", &uid) == -1 ||
-		nvlist_lookup_string(nvl, "name", &name) == -1 ||
-		nvlist_lookup_string(nvl, "start", &start) == -1 ||
-		nvlist_lookup_string(nvl, "stop", &stop) == -1 ||
-		nvlist_lookup_uint32(nvl, "flags", &(*job)->job_flags) == -1 ||
-		nvlist_lookup_uint32(nvl, "exit_action", &(*job)->job_exit_action) == -1 ||
-		nvlist_lookup_uint32(nvl, "crash_action", &(*job)->job_crash_action) == -1 ||
-		nvlist_lookup_uint32(nvl, "fail_action", &(*job)->job_fail_action) == -1 ||
-		nvlist_lookup_int32(nvl, "cron_type", &ct) == -1 ||
-		nvlist_lookup_int32(nvl, "cron_arg1", &ca1) == -1 ||
-		nvlist_lookup_int32(nvl, "cron_arg2", &ca2) == -1) {
+	if (	nvlist_lookup_int32(nvl, "id", &(*job)->job_id) ||
+		nvlist_lookup_int32(nvl, "user", &uid) ||
+		nvlist_lookup_string(nvl, "name", &name) ||
+		nvlist_lookup_string(nvl, "start", &start) ||
+		nvlist_lookup_string(nvl, "stop", &stop) ||
+		nvlist_lookup_uint32(nvl, "flags", &(*job)->job_flags) ||
+		nvlist_lookup_uint32(nvl, "exit_action", &(*job)->job_exit_action) ||
+		nvlist_lookup_uint32(nvl, "crash_action", &(*job)->job_crash_action) ||
+		nvlist_lookup_uint32(nvl, "fail_action", &(*job)->job_fail_action) ||
+		nvlist_lookup_int32(nvl, "cron_type", &ct) ||
+		nvlist_lookup_int32(nvl, "cron_arg1", &ca1) ||
+		nvlist_lookup_int32(nvl, "cron_arg2", &ca2)) {
 
 		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
 		goto err;
@@ -643,7 +643,7 @@ nvlist_t	*nvl = NULL;
 /*LINTED*/
 int32_t		 user = job->job_user;
 
-	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) == -1) {
+	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0)) {
 		logm(LOG_ERR, "job_update: nvlist_alloc failed: %s",
 				strerror(errno));
 		goto err;
@@ -681,7 +681,7 @@ int32_t		 user = job->job_user;
 		}
 	}
 
-	if (nvlist_pack(nvl, &xbuf, &size, NV_ENCODE_NATIVE, 0) == -1) {
+	if (nvlist_pack(nvl, &xbuf, &size, NV_ENCODE_NATIVE, 0)) {
 		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
 		goto err;
 	}

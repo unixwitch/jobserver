@@ -1,0 +1,38 @@
+This is the jobserver, a flexible replacement for 'cron' and 'at'.  The
+jobserver allows users to define scheduled and continuously-running jobs, and
+takes care of starting and stopping them as appropriate.  It provides a similar
+facility as SMF, but works for any user, not just root.
+
+The jobserver is written and tested on Solaris 10, but it should also work on
+OpenSolaris.  It will not work on any other operating systems.
+
+The Sun Studio compiler is required to build.  It is tested with 12u1, but
+should work with other versions.
+
+To build and install:
+
+ $ make
+ $ su
+ # make install
+ # svccfg import /var/svc/manifest/system/jobserver.xml
+ # svccfg enable jobserver
+
+The jobserver will take care of creating its own database in /var/jobserver,
+and no configuration is required to use it.
+
+The jobserver users RBAC for authorisation.  Any user with the
+"solaris.jobs.user" authorisation will be allowed to use the jobserver.  (This
+is granted to all users by default.)  Any user with the "solaris.jobs.admin"
+authorisation (including Primary Administrators) will have administratior
+access.
+
+If you're running Solaris 10, you need to edit /etc/security/prof_attr to
+replace "solaris.jobs.users" with "solaris.jobs.user", otherwise only
+administrators will be able to use the jobserver.  (This is Sun bug 6337435,
+and is fixed in OpenSolaris snv_27 and higher.)
+
+There is not much documentation at the moment.  Try 'job help', or see the
+Toolserver page at:
+  <https://wiki.toolserver.org/view/Jobserver>.
+
+Questions / comments: River Tarnell <river@loreley.flyingparchment.org.uk>.

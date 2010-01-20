@@ -470,7 +470,7 @@ int		 i;
 		if (!(job->job_flags & JOB_MAINTENANCE)) {
 			if (job->job_flags & JOB_ENABLED) {
 				if (sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
-					job_set_maintenance(job->job_id, "Restarting too quickly");
+					job_set_maintenance(job, "Restarting too quickly");
 				} else {
 					if (sched_start(job->job_id) == -1)
 						logm(LOG_WARNING, "job %ld: restart failed",
@@ -583,13 +583,13 @@ job_t	*job;
 
 	if ((job->job_flags & JOB_ENABLED) &&
 	    sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
-		job_set_maintenance(job->job_id, "Restarting too quickly");
+		job_set_maintenance(job, "Restarting too quickly");
 		free_job(job);
 		return;
 	}
 
 	if (job->job_exit_action & ST_EXIT_DISABLE)
-		if (job_disable(job->job_id) == -1)
+		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_exit: job_disabled failed");
 
 	free_job(job);
@@ -609,7 +609,7 @@ job_t	*job;
 		abort();
 
 	if (job->job_fail_action & ST_EXIT_DISABLE)
-		if (job_disable(job->job_id) == -1)
+		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_fail: job_disabled failed");
 	
 	free_job(job);
@@ -629,7 +629,7 @@ job_t	*job;
 		abort();
 
 	if (job->job_crash_action & ST_EXIT_DISABLE)
-		if (job_disable(job->job_id) == -1)
+		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_crash: job_disabled failed");
 
 	free_job(job);

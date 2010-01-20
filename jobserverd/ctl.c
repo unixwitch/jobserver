@@ -653,7 +653,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (job_clear_maintenance(id) == -1)
+	if (job_clear_maintenance(job) == -1)
 		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");
@@ -697,7 +697,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (job_unschedule(job->job_id) == -1)
+	if (job_unschedule(job) == -1)
 		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");
@@ -747,7 +747,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (job_set_schedule(id, time) == -1)
+	if (job_set_schedule(job, time) == -1)
 		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");
@@ -877,22 +877,22 @@ job_t		*job = NULL;
 		*value++ = 0;
 
 		if (!strcmp(key, "START")) {
-			if (job_set_start_method(id, value) == -1) {
+			if (job_set_start_method(job, value) == -1) {
 				(void) ctl_printf(client, "500 Could not change start method.\r\n");
 				goto err;
 			}
 		} else if (!strcmp(key, "STOP")) {
-			if (job_set_stop_method(id, value) == -1) {
+			if (job_set_stop_method(job, value) == -1) {
 				(void) ctl_printf(client, "500 Could not change stop method.\r\n");
 				goto err;
 			}
 		} else if (!strcmp(key, "NAME")) {
-			if (job_set_name(id, value) == -1) {
+			if (job_set_name(job, value) == -1) {
 				(void) ctl_printf(client, "500 Could not change job name.\r\n");
 				goto err;
 			}
 		} else if (!strcmp(key, "PROJECT")) {
-			if (job_set_project(id, value) == -1) {
+			if (job_set_project(job, value) == -1) {
 				(void) ctl_printf(client, "500 Could not change project.\r\n");
 				goto err;
 			}
@@ -903,12 +903,12 @@ job_t		*job = NULL;
 			}
 
 			if (!strcmp(value, "1")) {
-				if (job_enable(id) == -1) {
+				if (job_enable(job) == -1) {
 					(void) ctl_printf(client, "500 Could not enable job.\r\n");
 					goto err;
 				}
 			} else if (!strcmp(value, "0")) {
-				if (job_disable(id) == -1) {
+				if (job_disable(job) == -1) {
 					(void) ctl_printf(client, "500 Could not disable job.\r\n");
 					goto err;
 				}
@@ -974,7 +974,7 @@ rctl_qty_t	 value;
 	}
 
 	/*LINTED sign extension*/
-	if ((value = job_get_rctl(id, ctl)) == (rctl_qty_t) -1)
+	if ((value = job_get_rctl(job, ctl)) == (rctl_qty_t) -1)
 		(void) ctl_printf(client, "500 Resource control \"%s\" not set.\r\n", ctl);
 	else
 		(void) ctl_printf(client, "200 %llu\r\n", (u_longlong_t) value);
@@ -1029,7 +1029,7 @@ u_longlong_t	 value = 0;
 	}
 
 	/*LINTED sign extension*/
-	if ((value = job_set_rctl(id, ctl, value)) == -1)
+	if ((value = job_set_rctl(job, ctl, value)) == -1)
 		(void) ctl_printf(client, "500 Resource control \"%s\" not set.\r\n", ctl);
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");
@@ -1117,7 +1117,7 @@ u_longlong_t	 value = 0;
 		goto err;
 	}
 
-	if (job_clear_rctl(job->job_id, ctl) == -1)
+	if (job_clear_rctl(job, ctl) == -1)
 		(void) ctl_printf(client, "500 Could not clear rctl.\r\n");
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");

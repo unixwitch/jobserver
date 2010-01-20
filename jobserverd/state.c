@@ -463,167 +463,123 @@ err:
 }
 
 int
-job_enable(id)
-	job_id_t	id;
+job_enable(job)
+	job_t	*job;
 {
-job_t	*job;
 int	 ret;
 
-	if ((job = find_job(id)) == NULL)
-		return -1;
 	job->job_flags |= JOB_ENABLED;
 	ret = job_update(job);
 
 	if (!(job->job_flags & JOB_MAINTENANCE))
-		sched_job_enabled(id);
+		sched_job_enabled(job->job_id);
 
-	free_job(job);
 	return ret;
 }
 
 int
-job_disable(id)
-	job_id_t	id;
+job_disable(job)
+	job_t	*job;
 {
-job_t	*job;
 int	 ret;
 
-	if ((job = find_job(id)) == NULL)
-		return -1;
 	job->job_flags &= ~JOB_ENABLED;
 	ret = job_update(job);
-	free_job(job);
 
-	sched_job_disabled(id);
+	sched_job_disabled(job->job_id);
 	return ret;
 }
 
 int
-job_set_exit_action(id, flags)
-	job_id_t	id;
-	int		flags;
+job_set_exit_action(job, flags)
+	job_t	*job;
+	int	flags;
 {
-job_t	*job;
 int	 ret;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
 
 	job->job_exit_action = flags;
 	ret = job_update(job);
-	free_job(job);
 
 	return ret;
 }
 
 int
-job_set_crash_action(id, flags)
-	job_id_t	id;
-	int		flags;
+job_set_crash_action(job, flags)
+	job_t	*job;
+	int	flags;
 {
-job_t	*job;
 int	 ret;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
 
 	job->job_exit_action = flags;
 	ret = job_update(job);
-	free_job(job);
 
 	return ret;
 }
 
 int
-job_set_fail_action(id, flags)
-	job_id_t	id;
-	int		flags;
+job_set_fail_action(job, flags)
+	job_t	*job;
+	int	 flags;
 {
-job_t	*job;
 int	 ret;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
 
 	job->job_exit_action = flags;
 	ret = job_update(job);
-	free_job(job);
 
 	return ret;
 }
 
 int
-job_set_start_method(id, method)
-	job_id_t	 id;
+job_set_start_method(job, method)
+	job_t		*job;
 	char const	*method;
 {
-job_t	*job;
 char	*news;
 int	 ret;
 
 	if ((news = strdup(method)) == NULL)
 		return -1;
-
-	if ((job = find_job(id)) == NULL) {
-		free(news);
-		return -1;
-	}
 
 	free(job->job_start_method);
 	job->job_start_method = news;
 
 	ret = job_update(job);
-	free_job(job);
 	return ret;
 }
 
 int
-job_set_stop_method(id, method)
-	job_id_t	 id;
+job_set_stop_method(job, method)
+	job_t		*job;
 	char const	*method;
 {
-job_t	*job;
 char	*news;
 int	 ret;
 
 	if ((news = strdup(method)) == NULL)
 		return -1;
 
-	if ((job = find_job(id)) == NULL) {
-		free(news);
-		return -1;
-	}
-
 	free(job->job_stop_method);
 	job->job_stop_method = news;
 
 	ret = job_update(job);
-	free_job(job);
 	return ret;
 }
 
 int
-job_set_name(id, name)
-	job_id_t	 id;
+job_set_name(job, name)
+	job_t		*job;
 	char const	*name;
 {
-job_t	*job;
 char	*news;
 int	 ret;
 
 	if ((news = strdup(name)) == NULL)
 		return -1;
 
-	if ((job = find_job(id)) == NULL) {
-		free(news);
-		return -1;
-	}
-
 	free(job->job_name);
 	job->job_name = news;
 
 	ret = job_update(job);
-	free_job(job);
 	return ret;
 }
 
@@ -843,51 +799,34 @@ do_start_job(job, udata)
 }
 
 int
-job_unschedule(id)
-	job_id_t	 id;
+job_unschedule(job)
+	job_t	*job;
 {
-job_t	*job = NULL;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
-
 	job->job_flags &= ~JOB_SCHEDULED;
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_schedule: warning: job_update failed");
 
 	sched_job_unscheduled(job->job_id);
 
-	free_job(job);
 	return 0;
 }
 
 int
-job_set_maintenance(id, reason)
-	job_id_t	 id;
+job_set_maintenance(job, reason)
+	job_t		*job;
 	char const	*reason;
 {
-job_t	*job = NULL;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
-
 	job->job_flags |= JOB_MAINTENANCE;
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_set_maintenance: warning: job_update failed");
 
-	free_job(job);
 	return 0;
 }
 
 int
-job_clear_maintenance(id)
-	job_id_t	 id;
+job_clear_maintenance(job)
+	job_t	*job;
 {
-job_t	*job = NULL;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
-
 	job->job_flags &= ~JOB_MAINTENANCE;
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_clear_maintenance: warning: job_update failed");
@@ -895,21 +834,16 @@ job_t	*job = NULL;
 	if (job->job_flags & JOB_ENABLED)
 		sched_job_enabled(job->job_id);
 
-	free_job(job);
 	return 0;
 }
 int
-job_set_schedule(id, sched)
-	job_id_t	 id;
+job_set_schedule(job, sched)
+	job_t		*job;
 	char const	*sched;
 {
 cron_t	 cron;
 int	 i, j;
 char	 s[16];
-job_t	*job = NULL;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
 
 	if (job->job_flags & JOB_ENABLED) {
 		errno = EINVAL;
@@ -986,11 +920,9 @@ job_t	*job = NULL;
 
 	sched_job_scheduled(job->job_id);
 
-	free_job(job);
 	return 0;
 
 err:
-	free_job(job);
 	return -1;
 }
 
@@ -1056,52 +988,40 @@ int		 a1, a2;
 
 int
 job_set_lasterr(job, err)
-	job_id_t	 job;
+	job_t		*job;
 	char const	*err;
 {
 	return 0;
 }
 
 rctl_qty_t
-job_get_rctl(id, name)
-	job_id_t	 id;
+job_get_rctl(job, name)
+	job_t		*job;
 	char const	*name;
 {
 int	 i;
-job_t	*job;
-
-	if ((job = find_job(id)) == NULL)
-		/*LINTED sign extension*/
-		return (rctl_qty_t) -1;
 
 	for (i = 0; i < job->job_nrctls; ++i) {
 		if (strcmp(job->job_rctls[i].jr_name, name))
 			continue;
 
-		free_job(job);
 		return job->job_rctls[i].jr_value;
 	}
 
-	free_job(job);
 	/*LINTED sign extension*/
 	return -1;
 }
 
 int
-job_clear_rctl(id, name)
-	job_id_t	 id;
+job_clear_rctl(job, name)
+	job_t		*job;
 	char const	*name;
 {
 int		 i, j;
-job_t		*job = NULL;
 job_rctl_t	*nr;
 int		 newn;
 
-	if ((job = find_job(id)) == NULL)
-		return -1;
-	
 	if (job->job_rctls == NULL) {
-		free_job(job);
 		return 0;
 	}
 
@@ -1132,27 +1052,21 @@ int		 newn;
 		goto err;
 	}
 
-	free_job(job);
 	return 0;
 
 err:
 	free(nr);
-	free_job(job);
 	return -1;
 }
 
 int
-job_set_rctl(id, name, value)
-	job_id_t	 id;
+job_set_rctl(job, name, value)
+	job_t		*job;
 	char const	*name;
 	rctl_qty_t	 value;
 {
 int		 i;
-job_t		*job = NULL;
 job_rctl_t	*nr = NULL;
-
-	if ((job = find_job(id)) == NULL)
-		return -1;
 
 	for (i = 0; i < job->job_nrctls; ++i) {
 		if (strcmp(job->job_rctls[i].jr_name, name))
@@ -1165,7 +1079,6 @@ job_rctl_t	*nr = NULL;
 			goto err;
 		}
 
-		free_job(job);
 		return 0;
 	}
 
@@ -1186,11 +1099,9 @@ job_rctl_t	*nr = NULL;
 		goto err;
 	}
 
-	free_job(job);
 	return 0;
 
 err:
-	free_job(job);
 	free(nr);
 	return -1;
 }
@@ -1319,15 +1230,14 @@ format_rctl(qty, type)
 }
 
 int
-job_set_project(id, proj)
-	job_id_t	 id;
+job_set_project(job, proj)
+	job_t		*job;
 	char const	*proj;
 {
-job_t	*job = NULL;
 char	*np = NULL;
 
-	if ((job = find_job(id)) == NULL)
-		return -1;
+	assert(job);
+	assert(proj);
 
 	if (proj && *proj && strcmp(proj, "default")) {
 		if ((np = strdup(proj)) == NULL) {
@@ -1351,6 +1261,5 @@ char	*np = NULL;
 
 err:
 	free(np);
-	free_job(job);
 	return -1;
 }

@@ -110,7 +110,7 @@ void	 free_job(job_t *);
 /*
  * Rename a job in the database.
  */
-int	 job_set_name(job_id_t, char const *);
+int	 job_set_name(job_t *, char const *);
 
 /*
  * Enumerate all jobs, or all jobs owned by a particular user.  For each job
@@ -124,47 +124,47 @@ int	 job_enumerate_user(uid_t, job_enumerate_callback, void *);
 /*
  * Change the start/stop methods for the job in the database.
  */
-int	 job_set_start_method(job_id_t, char const *);
-int	 job_set_stop_method(job_id_t, char const *);
+int	 job_set_start_method(job_t *, char const *);
+int	 job_set_stop_method(job_t *, char const *);
 
 /*
  * Change the various exit actions.
  */
-int	job_set_exit_action(job_id_t, int);
-int	job_set_fail_action(job_id_t, int);
-int	job_set_crash_action(job_id_t, int);
+int	job_set_exit_action(job_t *, int);
+int	job_set_fail_action(job_t *, int);
+int	job_set_crash_action(job_t *, int);
 
 /*
  * Set or replace the schedule for a job.  This also reschedules
  * the job.
  */
-int	job_set_schedule(job_id_t, char const *);
-int	job_unschedule(job_id_t);
+int	job_set_schedule(job_t *, char const *);
+int	job_unschedule(job_t *);
 
 /*
  * Enable or disable a job.  It is not an error to enable or disable a job more
  * than once.  A disabled job will never be started.
  */
-int	 job_enable(job_id_t);
-int	 job_disable(job_id_t);
+int	 job_enable(job_t *);
+int	 job_disable(job_t *);
 
 /*
  * Set the last seen error message for a job.
  */
-int	job_set_lasterr(job_id_t, char const *);
+int	job_set_lasterr(job_t *, char const *);
 
 /*
  * Set or clear maintenance flag on a job.
  */
-int	job_set_maintenance(job_id_t, char const *reason);
-int	job_clear_maintenance(job_id_t);
+int	job_set_maintenance(job_t *, char const *reason);
+int	job_clear_maintenance(job_t *);
 
 /*
  * Set (replace), remove or fetch an rctl value for a job.
  */
-int		job_set_rctl(job_id_t job, char const *name, rctl_qty_t value);
-rctl_qty_t	job_get_rctl(job_id_t job, char const *name);
-int		job_clear_rctl(job_id_t job, char const *name);
+int		job_set_rctl(job_t *, char const *name, rctl_qty_t value);
+rctl_qty_t	job_get_rctl(job_t *, char const *name);
+int		job_clear_rctl(job_t *, char const *name);
 
 int		 is_valid_rctl(char const *name);
 int		 get_rctl_type(char const *name);
@@ -173,6 +173,6 @@ char const	*format_rctl(rctl_qty_t value, int type);
 /*
  * Set the project for a job.
  */
-int	job_set_project(job_id_t id, char const *project);
+int	job_set_project(job_t *, char const *project);
 
 #endif	/* !STATE_H */

@@ -25,6 +25,8 @@
 #include	<xti.h>
 #include	<fcntl.h>
 #include	<ucred.h>
+#include	<curses.h>
+#include	<term.h>
 
 typedef struct {
 	int	 numeric;
@@ -84,6 +86,8 @@ static struct {
 };
 
 static int debug;
+
+static char const *bold = "", *reset = "";
 
 char const *u_list =
 "       job [-D] list|ls [-u <user>]\n"
@@ -256,6 +260,14 @@ int	 fd, c;
 size_t	 i;
 reply_t	*rep;
 
+	if (setupterm(NULL, 1, NULL) == OK) {
+	char	*s;
+		if (s = tigetstr("bold"))
+			bold = strdup(s);
+		if (s = tigetstr("sgr0"))
+			reset = strdup(s);
+	}
+
 	while ((c = getopt(argc, argv, "D")) != -1) {
 		switch (c) {
 		case 'D':
@@ -415,12 +427,14 @@ int nents = 0;
 				return 0;
 			}
 
-			printf("%*s %-*s %-*s %-*s %-*s CMD\n",
+			printf("%s%*s %-*s %-*s %-*s %-*s CMD%s\n",
+				bold,
 				id_w, "ID", 
 				name_w, "NAME",
 				user_w, "USER",
 				state_w, "STATE",
-				rstate_w, "RSTATE");
+				rstate_w, "RSTATE",
+				reset);
 
 			for (i = 0; i < nents; ++i)
 				printf("%*s %-*s %-*s %-*s %-*s %s\n",

@@ -87,7 +87,7 @@ static struct {
 
 static int debug;
 
-static char const *bold = "", *reset = "";
+static char const *bold = "", *red = "", *green = "", *blue = "", *reset = "";
 
 char const *u_list =
 "       job [-D] list|ls [-u <user>]\n"
@@ -266,6 +266,11 @@ reply_t	*rep;
 			bold = strdup(s);
 		if (s = tigetstr("sgr0"))
 			reset = strdup(s);
+		if (s = tigetstr("setaf")) {
+			red = strdup(tparm(s, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+			green = strdup(tparm(s, 2, 0, 0, 0, 0, 0, 0, 0, 0));
+			blue = strdup(tparm(s, 4, 0, 0, 0, 0, 0, 0, 0, 0));
+		}
 	}
 
 	while ((c = getopt(argc, argv, "D")) != -1) {
@@ -436,14 +441,31 @@ int nents = 0;
 				rstate_w, "RSTATE",
 				reset);
 
-			for (i = 0; i < nents; ++i)
-				printf("%*s %-*s %-*s %-*s %-*s %s\n",
+			for (i = 0; i < nents; ++i) {
+			char const	*scol, *rcol;
+
+				if (!strcmp(ents[i].state, "maintenance"))
+					scol = red;
+				else if (!strcmp(ents[i].state, "enabled"))
+					scol = green;
+				else if (!strcmp(ents[i].state, "scheduled"))
+					scol = blue;
+				else
+					scol = "";
+
+				if (!strcmp(ents[i].rstate, "running"))
+					rcol = green;
+				else
+					rcol = "";
+
+				printf("%*s %-*s %-*s %s%-*s%s %s%-*s%s %s\n",
 					id_w, ents[i].id,
 					name_w, ents[i].name,
 					user_w, ents[i].user,
-					state_w, ents[i].state,
-					rstate_w, ents[i].rstate,
+					scol, state_w, ents[i].state, reset,
+					rcol, rstate_w, ents[i].rstate, reset,
 					ents[i].cmd);
+			}
 			return 0;
 
 		default:

@@ -4,7 +4,7 @@ CPPFLAGS	= -D_XOPEN_SOURCE=500 -D__EXTENSIONS__
 CFLAGS		= -xO0 -g -xc99=%none
 LDFLAGS		= 
 LINTFLAGS	= -asm -u -errhdr -errchk -Ncheck -Nlevel -errtags=yes -Xc99=%none -errsecurity=core
-LIBS		= -lnsl 
+LIBS		= -lnsl -lcurses
 
 OBJS	= job.o
 SRCS	= $(OBJS:.o=.c)

@@ -64,6 +64,7 @@ void	c_lisr(ctl_client_t *, char *);
 void	c_clrr(ctl_client_t *, char *);
 void	c_conf(ctl_client_t *, char *);
 void	c_strt(ctl_client_t *, char *);
+void	c_uset(ctl_client_t *, char *);
 
 static void ctl_client_accept(int, fde_evt_type_t, void *);
 static void ctl_readline(int, char *, size_t, void *);
@@ -92,6 +93,7 @@ static struct {
 	{ "CLRR",	RUNNING,	c_clrr },	/* Clear rctl	*/
 	{ "CONF",	RUNNING,	c_conf },	/* Configure	*/
 	{ "STRT",	RUNNING,	c_strt },	/* Start	*/
+	{ "USET",	RUNNING,	c_uset },	/* Unset	*/
 };
 
 static ctl_client_t *clients;
@@ -1224,6 +1226,61 @@ job_t		*job = NULL;
 		(void) ctl_printf(client, "500 Could not start job.\r\n");
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");
+
+err:
+	free_job(job);
+}
+
+void
+c_uset(client, line)
+	ctl_client_t	*client;
+	char		*line;
+{
+char		*arg, *endp = NULL;
+job_id_t	 id;
+job_t		*job = NULL;
+
+	if ((arg = next_word(&line)) == NULL) {
+		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+		goto err;
+	}
+
+	/*LINTED*/
+	id = strtol(arg, &endp, 10);
+	if (endp != (arg + strlen(arg))) {
+		(void) ctl_printf(client, "500 Invalid format.\r\n");
+		goto err;
+	}
+
+	if ((job = find_job(id)) == NULL) {
+		(void) ctl_printf(client, "500 No such job.\r\n");
+		goto err;
+	}
+
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_MODIFY)) {
+		(void) ctl_printf(client, "500 Permission denied.\r\n");
+		goto err;
+	}
+
+	while (arg = next_word(&line)) {
+		if (!strcmp(arg, "START") ||
+		    !strcmp(arg, "STOP") ||
+		    !strcmp(arg, "NAME") ||
+		    !strcmp(arg, "ENABLED")) {
+			(void) ctl_printf(client, "500 This option cannot be unset.\r\n");
+			goto err;
+		} else if (!strcmp(arg, "PROJECT")) {
+			if (job_set_project(job, NULL) == -1) {
+				(void) ctl_printf(client, "500 Could not change project.\r\n");
+				goto err;
+			}
+		} else {
+			(void) ctl_printf(client, "500 Invalid syntax.\r\n");
+			goto err;
+		}
+	}
+
+	(void) ctl_printf(client, "200 OK.\r\n");
 
 err:
 	free_job(job);

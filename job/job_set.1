@@ -7,9 +7,12 @@ job set \- set properties for a job
 \fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBset\fR \fIid\fR \fIproperty\fR=\fIvalue\fR [\fIproperty\fR=\fIvalue ...\fR]
 .fi
 
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunset\fR \fIid\fR \fIproperty\fR [\fIproperty\fR ...]
+.fi
 .SH DESCRIPTION
 .LP
-Use this command to set properties on a job.  Properties are used to
+Use this command to set or unset properties on a job.  Properties are used to
 control aspects of how a job is started and stopped.
 
 .LP
@@ -20,7 +23,7 @@ The following properties are available:
 .na
 \fBstart\fR
 .ad
-.RS 7n
+.RS 13n
 .rt
 The command used to start the job.
 .RE
@@ -30,7 +33,7 @@ The command used to start the job.
 .na
 \fBstop\fR
 .ad
-.RS 7n
+.RS 13n
 .rt
 The command used to stop the job.
 .RE
@@ -40,10 +43,38 @@ The command used to stop the job.
 .na
 \fBname\fR
 .ad
-.RS 7n
+.RS 13n
 .rt
 The name of the job.
 .RE
+
+.ne 2
+.mk
+.na
+\fBproject\fR
+.ad
+.RS 13n
+.rt
+The project the job will run in.
+.RE
+
+.SH EXAMPLES
+.LP
+\fBExample 1: Set a job's project to 'batch'\fR
+
+.in +2
+.nf
+example% job set 1 project=batch
+.fi
+.in -2
+
+\fBExample 2: Set a job's project back to the default\fR
+
+.in +2
+.nf
+example% job unset 1 project
+.fi
+.in -2
 
 .SH SEE ALSO
 \fBjob\fR(1)

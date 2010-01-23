@@ -58,6 +58,7 @@ static int	c_limit(int, char **);
 static int	c_unlimit(int, char **);
 static int	c_quota(int, char **);
 static int	c_start(int, char **);
+static int	c_unset(int, char **);
 
 static struct {
 	char const	*cmd;
@@ -83,6 +84,7 @@ static struct {
 	{ "unlimit",	c_unlimit },
 	{ "quota",	c_quota },
 	{ "start",	c_start },
+	{ "unset",	c_unset },
 };
 
 static int debug;
@@ -121,7 +123,8 @@ char const *u_show =
 "\n"
 "         Show all available information about the given job.\n";
 char const *u_set =
-"       job [-D] set <id> property=value [property=value ...]\n"
+"       job [-D] set <id> <property>=<value> [<property>=<value> ...]\n"
+"       job [-D] unset <id> <property> [<property> ...]\n"
 "\n"
 "         Set a property on a job.  Available properties:\n"
 "\n"
@@ -678,6 +681,35 @@ reply_t	*rep;
 }
 
 static int
+do_unset_property(id, prop)
+	int		 id;
+	char const	*prop;
+{
+char	*key;
+reply_t	*rep;
+
+	if (!strcmp(prop, "start"))
+		key = "START";
+	else if (!strcmp(prop, "stop"))
+		key = "STOP";
+	else if (!strcmp(prop, "name"))
+		key = "NAME";
+	else if (!strcmp(prop, "project"))
+		key = "PROJECT";
+	else
+		return -1;
+
+	rep = simple_command("USET %d %s", id, key);
+	if (rep->numeric != 200) {
+		(void) fprintf(stderr, "%s\n", rep->text);
+		exit(1);
+	}
+
+	free_reply(rep);
+	return 0;
+}
+
+static int
 do_set_property(id, prop, value)
 	int		 id;
 	char const	*prop;
@@ -704,6 +736,37 @@ reply_t	*rep;
 	}
 
 	free_reply(rep);
+	return 0;
+}
+
+int
+c_unset (argc, argv)
+	int argc;
+	char **argv;
+{
+int	id;
+
+	if (argc < 2) {
+		(void) fprintf(stderr, "unset: not enough arguments\n");
+		(void) fprintf(stderr, "%s", u_set);
+		return 1;
+	}
+
+	id = atoi(argv[1]);
+	argv += 2;
+	argc -= 2;
+
+	while (argc) {
+		if (do_unset_property(id, argv[0]) == -1) {
+			(void) fprintf(stderr, "set: unknown property \"%s\"\n", argv[0]); 
+			(void) fprintf(stderr, "%s", u_set);
+			return 1;
+		}
+
+		argc--;
+		argv++;
+	}
+
 	return 0;
 }
 

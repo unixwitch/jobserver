@@ -1335,7 +1335,6 @@ job_set_project(job, proj)
 char	*np = NULL;
 
 	assert(job);
-	assert(proj);
 
 	if (proj && *proj && strcmp(proj, "default")) {
 	char		 nssbuf[PROJECT_BUFSZ];
@@ -1347,7 +1346,7 @@ char	*np = NULL;
 		if ((pwd = getpwuid(job->job_user)) == NULL)
 			goto err;
 
-		if (!inproj(pwd->pw_name, job->job_project, nssbuf, sizeof(nssbuf)))
+		if (!inproj(pwd->pw_name, proj, nssbuf, sizeof(nssbuf)))
 			goto err;
 
 		if ((np = strdup(proj)) == NULL) {

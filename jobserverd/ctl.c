@@ -905,7 +905,8 @@ job_t		*job = NULL;
 			}
 		} else if (!strcmp(key, "ENABLED")) {
 			if (job->job_flags & JOB_SCHEDULED) {
-				(void) ctl_printf(client, "500 Cannot enable a scheduled job.\r\n");
+				(void) ctl_printf(client, "500 Cannot %s a scheduled job.\r\n",
+						(strcmp(value, "1") ? "disable" : "enable"));
 				goto err;
 			}
 

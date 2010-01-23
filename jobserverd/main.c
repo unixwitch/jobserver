@@ -111,6 +111,11 @@ struct rlimit	nofile;
 		return 1;
 	}
 
+	if (ev_init(port, 512) == -1) {
+		logm(LOG_ERR, "cannot initialise event system");
+		return 1;
+	}
+
 	if (sched_init(port) == -1) {
 		logm(LOG_ERR, "cannot initialise scheduler");
 		return 1;
@@ -118,11 +123,6 @@ struct rlimit	nofile;
 
 	if (statedb_init() == -1) {
 		logm(LOG_ERR, "cannot initialise database");
-		return 1;
-	}
-
-	if (ev_init(port, 512) == -1) {
-		logm(LOG_ERR, "cannot initialise event system");
 		return 1;
 	}
 

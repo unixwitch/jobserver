@@ -1,0 +1,236 @@
+.TH job 1 "20 Jan 2010" "Jobserver" "User Commands"
+.SH NAME
+job \- manage jobs
+.SH SYNOPSIS
+.LP
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBadd\fR [\fB-e\fR] [\fB-o\fR \fIprop\fR=\fIvalue\fR] [\fB-S\fR \fIschedule\fR] [\fB-n\fR \fIname\fR] \fIcommand\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdel\fR[\fBete\fR] \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBset\fR \fIid\fR \fIproperty\fR=\fIvalue\fR [\fIproperty\fR=\fIvalue ...\fR]
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBshow\fR \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBclear\fR \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBsched\fR[\fBule\fR] \fIid\fR \fItime\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstart\fR \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBlimit\fR \fIjob\fR \fIcontrol\fR [\fIvalue\fR]
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunlimit\fR \fIjob\fR \fIcontrol\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBquota\fR \fIquota\fR [\fIvalue\fR]
+.fi
+
+.SH DESCRIPTION
+.LP
+The \fBjob\fR command allows you to interact with the jobserver to create,
+manage and delete jobs.  For information on individual commands, see their
+specific manual pages.  For an introduction to the jobserver, see the
+\fBjob_intro\fR(1) manual page.
+
+.SH OVERVIEW
+.LP
+A \fIjob\fR is an entity consisting of a start command, optionally a stop
+command, and their associated configuration.  Once the job's start command is
+executed, the job is considered to be running.  Any additional processes
+started by the start command are added to the job.  If the job is disabled, or
+certain fatal events occur, the stop command is executed.  Once all processes
+in the job exit, the job is considered to be stopped.
+
+.LP
+Each job is either a normal job or a scheduled job.  A normal job must be
+started manually using the \fBjob enable\fR command.  Once enabled, it may be
+stopped using the \fBjob disable\fR command.  If the jobs exits on its own, it
+may be automatically restarted depending on how it is configured.
+
+.LP
+A scheduled job is not started manually; rather, it is started regularly at a
+particular time, which can be set with the \fBjob schedule\fR command.  When a
+scheduled job exits, it will not be restarted automatically until the next
+scheduled run time.  A scheduled job can also be started manually using the
+\fBjob start\fR command.
+
+.LP
+A job will never be started more than once.  If a job is already running, any
+request to start it will be ignored.  If a scheduled job is still running when
+its next scheduled run comes around, it will not be started again.
+
+.SH STARTING AND STOPPING JOBS
+
+.LP
+When a job is started, its project will be set to the user's default project,
+or the project previously specified with the \fBjob set\fR command, any
+configured resource limits will be applied, and the following environment
+variables will be set:
+
+.RS 5
+\fBHOME\fR
+.br
+\fBUSER\fR
+.br
+\fBLOGNAME\fR
+.br
+\fBSHELL\fR
+.br
+\fBPATH\fR
+.RE
+
+.LP
+Additional environment variables will be read from the file
+\fB$HOME/.environment\fR, which should contain a list of \fIname\fR=\fIvalue\fR
+pairs, one per line.  Empty lines, and lines starting with a \fB#\fR character,
+will be ignore.
+
+.LP
+Output (stdout and stderr) from a job are written to
+\fB$HOME/.job/job_\fRid\fB.log\fR.  This file will be automatically rotated
+once it reaches 2MB in size.
+
+.LP 
+Unless a stop method has been configured with \fBjob_set\fR(1), the jobserver
+will stop a job by sending \fBSIGTERM\fR to all processes in the job, waiting
+30 seconds, then sending a \fBSIGKILL\fR to any remaining processes.  If a stop
+method has been configured, the jobserver will execute the stop method, wait 30
+seconds, then sending \fBSIGKILL\fR to any remaining processes, including the
+stop method itself.
+
+.SH MANAGING JOBS
+
+.LP
+The following commands are used to manage jobs:
+
+.ne 2
+.mk
+.na
+\fBjob add\fR
+.ad
+.RS 5n
+.rt
+Create a new job.  See \fBjob_add\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob delete\fR
+.ad
+.RS 5n
+.rt
+Delete a job.  See \fBjob_delete\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob enable\fR
+.br
+\fBjob disable\fR
+.ad
+.RS 5n
+.rt
+Enable or disable a job.  See \fBjob_enable\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob set\fR
+.ad
+.RS 5n
+.rt
+Change a job's configuration.  See \fBjob_set\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob show\fR
+.ad
+.RS 5n
+.rt
+Display a job's configuration and state.  See \fBjob_show\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob clear\fR
+.ad
+.RS 5n
+.rt
+Clear the maintenance state on a job.  See \fBjob_clear\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob schedule\fR
+.br
+\fBjob unschedule\fR
+.br
+\fBjob start\fR
+.ad
+.RS 5n
+.rt
+Schedule or unschedule a job, or force a scheduled job to run.
+See \fBjob_schedule\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob limit\fR
+.br
+\fBjob unlimit\fR
+.ad
+.RS 5n
+.rt
+Set or clear resource limits on a job.  See \fBjob_limit\fR(1).
+.RE
+
+.ne 2
+.mk
+.na
+\fBjob quota\fR
+.ad
+.RS 5n
+.rt
+Configure user quotas.  See \fBjob_quota\fR(1).
+.RE
+
+.SH AUTHOR
+The jobserver was written by River Tarnell <river.tarnell@wikimedia.de>.

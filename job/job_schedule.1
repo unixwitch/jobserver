@@ -1,0 +1,82 @@
+'\" te
+.TH job_schedule 1 "20 Jan 2010" "Jobserver" "User Commands"
+.SH NAME
+job schedule, job unschedule \- schedule or unschedule a job
+.SH SYNOPSIS
+.LP
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBsched\fR[\fBule\fR] \fIid\fR \fItime\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstart\fR \fIid\fR
+.fi
+
+.SH DESCRIPTION
+.LP
+Use this command to schedule a recurring job to run at a particular time,
+or unschedule an already scheduled job.
+
+.SS "job sched"
+.LP
+The first form of the command schedules job \fIid\fR to run at \fItime\fR.
+\fItime\fR should be one of the following schedule specifications:
+
+.TS
+box;
+cw(2.75i) |cw(2.75i) 
+lw(2.75i) |lw(2.75i).
+Specification	 Example
+_
+every minute	
+_
+every hour at \fIMM\fR	every hour at 15
+_
+every day at \fIHH\fR:\fIMM\fR	every day at 03:00
+_
+every \fIDAY\fR at \fIHH\fR:\fIMM\fR	every sunday at 03:00
+.TE
+
+.LP
+An enabled job cannot be scheduled; disable the job with \fBjob disable\fR
+first (see \fBjob_disable\fR(1)).
+
+.SS "job unsched"
+.LP
+The second form of the command unschedules a currently scheduled job,
+returning it to the \fBdisabled\fR state.
+
+.SS "job start"
+.LP
+The \fBjob start\fR command forces a scheduled job to start running
+immediately.  After the job exits, it will revert back to a scheduled
+job.
+
+.SH EXAMPLES
+
+.LP
+\fBExample 1: Schedule a job\fR
+
+This commands schedules a job to run at 03:00 every day:
+
+.in +2
+.nf
+example% job schedule 4 "every day at 03:00"
+.fi
+.in -2
+
+.LP
+\fBExample 2: Unschedule a job\fR
+
+This command removes the schedule from a job:
+
+.in +2
+.nf
+example% job unschedule 4
+.fi
+.in +2
+

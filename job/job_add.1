@@ -1,0 +1,70 @@
+.TH job_add 1 "20 Jan 2010" "Jobserver" "User Commands"
+.SH NAME
+job add \- create a new job
+.SH SYNOPSIS
+.LP
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBadd\fR [\fB-e\fR] [\fB-o\fR \fIproperty\fR\fB=\fR\fIvalue\fR] [\fB-S\fR \fIschedule\fR] [\fB-n\fR \fIname\fR] \fIcommand\fR
+.fi
+
+.SH DESCRIPTION
+.LP
+The \fBjob add\fR command is used to create a new jobserver job (see
+\fBjob\fR(1)).  The new job will be created in the \fBdisabled\fR state (unless
+the \fB-e\fR or \fB-S\fR options are specified), and the job name will be set
+to \fIcommand\fR with everything up to the last \fB/\fR removed.  If
+\fIcommand\fR contains spaces, a job name must be specified with \fB-n\fR, as
+job names may not contain spaces.
+
+.LP
+After a job has been added, it should either be enabled (see
+\fBjob_enable\fR(1)) or scheduled (see \fBjob_schedule\fR(1)).
+
+.SH OPTIONS
+.LP
+The following options are supported:
+
+.ne 2
+.mk
+.na
+\fB-e\fR
+.ad
+.RS 13n
+.rt
+Create the job in the \fBenabled\fR state.
+.RE
+
+.ne 2
+.mk
+.na
+\fB-n\fR \fIname\fR
+.ad
+.RS 13n
+.rt
+Create the job with the specified name.
+.RE
+
+.ne 2
+.mk
+.na
+\fB-o\fR \fIproperty\fR\fB=\fR\fIvalue\fB
+.ad
+.RS 13n
+.rt
+Set a property when creating the job.  See \fBjob_set\fR(1) for a list of
+available properties.  This option may be specified multiple times.
+.RE
+
+.ne 2
+.mk
+.na
+\fB-S\fR \fIschedule\fR
+.ad
+.RS 13n
+.rt
+Create the job with the specifide schedule.  See \fBjob_schedule\fR(1) for a
+description of schedule specifications.
+.RE
+
+.SH SEE ALSO
+\fBjob_enable\fR(1), \fBjob_schedule\fR(1), \fBjob_set\fR(1), \fBjob_delete\fR(1).

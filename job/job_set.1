@@ -1,0 +1,49 @@
+.TH job_set 1 "20 Jan 2010" "Jobserver" "User Commands"
+.SH NAME
+job set \- set properties for a job
+.SH SYNOPSIS
+.LP
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBset\fR \fIid\fR \fIproperty\fR=\fIvalue\fR [\fIproperty\fR=\fIvalue ...\fR]
+.fi
+
+.SH DESCRIPTION
+.LP
+Use this command to set properties on a job.  Properties are used to
+control aspects of how a job is started and stopped.
+
+.LP
+The following properties are available:
+
+.ne 2
+.mk
+.na
+\fBstart\fR
+.ad
+.RS 7n
+.rt
+The command used to start the job.
+.RE
+
+.ne 2
+.mk
+.na
+\fBstop\fR
+.ad
+.RS 7n
+.rt
+The command used to stop the job.
+.RE
+
+.ne 2
+.mk
+.na
+\fBname\fR
+.ad
+.RS 7n
+.rt
+The name of the job.
+.RE
+
+.SH SEE ALSO
+\fBjob\fR(1)

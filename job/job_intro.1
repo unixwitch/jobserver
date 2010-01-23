@@ -1,0 +1,132 @@
+.TH job_intro 1 "20 Jan 2010" "Jobserver" "User Commands"
+.SH NAME
+job_intro \- quick introduction to the jobserver
+
+.SH DESCRIPTION
+.LP
+The jobserver is a centralised system that allows long-running or regularly
+scheduled jobs to be started easily, and restarted when the system reboots, or
+if they crash.  This document provides a quick introduction to using the
+jobserver.  For a full description of all the jobserver's features, see
+\fBjob\fR(1).
+
+.SH ADDING A JOB
+
+.LP
+The user interface to the jobserver is the \fBjob\fR(1) command, which is used
+to create, manage and delete jobs.  To create a new job, use the \fBjob add\fR
+command:
+
+.in +2
+.nf
+example% job add -e $HOME/myjob.sh
+.fi
+.in -2
+
+.LP
+This creates a new job called \fBmyjob.sh\fR and uses \fB$HOME/myjob.sh\fR as
+the start command.  The \fB-e\fR option causes the job to be automatically
+enabled and started.  To view the status of the job, use \fBjob list\fR:
+
+.in +2
+.nf
+example% job list
+ID NAME       USER     STATE     RSTATE    CMD
+ 2 myjob.sh   jsmith   enabled   running   /home/jsmith/myjob.sh
+.fi
+.in -2
+
+.LP
+The job id, in this case \fB2\fR, is used to uniquely identify the job.  You
+will need to use the job id whenever you interact with the jobserver.
+
+.LP
+To stop a running job, use the \fBjob disable\fR \fIid\fR command.  The
+jobserver will send \fBSIGTERM\fR to all processes in the job, wait 30 seconds,
+then send \fBSIGKILL\fR to any remaining processes.  To delete a job
+entirely, use \fBjob delete\fR \fIid\fR.
+
+.SH VIEWING JOB OUTPUT
+
+.LP
+Any output from the job will be sent to the file
+\fB$HOME/.job/job_\fR\fIid\fR\fB.log\fR, which will be rotated automatically
+once it reaches 1MB in size.
+
+.SH SCHEDULED JOBS
+
+.LP
+Instead of starting the job immediately, you can schedule a job to run at a
+particular time:
+
+.in +2
+.nf
+example% job add -S "every monday at 03:00" $HOME/myjob.sh
+example% job list
+ID NAME       USER     STATE       RSTATE    CMD
+ 3 myjob.sh   jsmith   scheduled   stopped   /home/jsmith/myjob.sh
+.fi
+.in -2
+
+.LP
+The jobserver will start the scheduled job at the given time.  Note that since
+the schedule specification contains spaces, it must be enclosed in quotes to
+protect it from the shell.  See \fBjob_schedule\fR(1) for a list of valid
+schedule specifications.
+
+.LP
+Instead of using \fB-S\fR, you can schedule an existing job with the \fBjob
+schedule\fR command:
+
+.in +2
+.nf
+example% job schedule 4 "every minute"
+.fi
+.in -2
+
+.LP
+To force a scheduled job to start before it normally use, use the \fBjob
+start\fR \fIid\fR command.
+
+.SH MAINTENANCE STATE
+.LP
+If a job fails, it will be placed in the \fBmaintenance\fR state:
+
+.in +2
+.nf
+example% job list
+ID NAME       USER     STATE         RSTATE    CMD
+ 3 myjob.sh   jsmith   maintenance   stopped   /home/jsmith/myjob.sh
+.fi
+.in -2
+
+.LP
+A job in this state will never be started by the jobserver.  To restart the
+job, fix whatever problem caused the job to fail, then clear the maintenance
+state with \fBjob clear \fR\fIid\fR.  
+
+.SH ENVIRONMENT
+
+.LP
+The jobserver sets some standard environment variables when starting a job:
+\fBHOME\fR, \fBLOGNAME\fR, \fBUSER\fR, \fBSHELL\fR, and \fBPATH\fR.  To set
+additional environment variables, create a file called \fB$HOME/.environment\fR
+and write \fINAME\fR\fB=\fR\fIVALUE\fR pairs in it, one per line.
+
+.SH RESOURCE LIMITS
+
+.LP
+Resource limits are a way to restrict the resources a job can use, so that
+a broken job doesn't adversely affect the rest of the system.  Use the
+\fBjob limit\fR command to set resource limits.  For example, to limit the
+process to 10MB of memory:
+
+.in +2
+.nf
+example% job limit 3 max-data-size=10240
+.fi
+.in -2
+
+.LP
+To view a job's resource limits, use \fBjob limit\fR \fIid\fR.  See
+\fBjob_limit\fR(1) for a list of available resource limits.

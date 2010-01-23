@@ -10,6 +10,17 @@ OBJS	= job.o
 SRCS	= $(OBJS:.o=.c)
 PROG	= job
 
+MANPAGES	= 	\
+	job.1		\
+	job_enable.1	\
+	job_limit.1	\
+	job_schedule.1	\
+	job_show.1	\
+	job_add.1	\
+	job_intro.1	\
+	job_quota.1	\
+	job_set.1
+
 default: all
 all: $(PROG)
 
@@ -28,5 +39,9 @@ clean:
 install:
 	ginstall -o root -g root -d $(DESTDIR)/opt/jobserver/bin
 	ginstall -o root -g root -m 0711 job $(DESTDIR)/opt/jobserver/bin
+	ginstall -o root -g root -d $(DESTDIR)/opt/jobserver/man/man1
+	for m in $(MANPAGES); do \
+		ginstall -o root -g root -m 0644 $$m $(DESTDIR)/opt/jobserver/man/man1; \
+	done
 
 .KEEP_STATE:

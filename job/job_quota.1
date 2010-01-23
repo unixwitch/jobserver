@@ -1,0 +1,35 @@
+'\" te
+.TH job_quota 1 "23 Jan 2010" "Jobserver" "User Commands"
+.SH NAME
+job quota \- set user quotas
+.SH SYNOPSIS
+.LP
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBquota\fR \fIquota\fR [\fIvalue\fR]
+.fi
+
+.SH DESCRIPTION
+.LP
+Use this command to set jobserver quotas for users.  Currently, only global
+(not per-user) quotas are supported.  The following quota is available:
+
+.TS
+box;
+c |cw(4i)
+l |lw(4i).
+Resource	Description
+_
+jobs-per-user	T{
+The maximum number of jobs a single user may define
+T}
+.TE
+
+.SH EXAMPLE
+.LP
+\fBExample 1: limit users to 15 jobs each\fR
+
+.in +2
+.nf
+example% job quota jobs-per-user 15
+.fi
+.in -2

@@ -1,0 +1,35 @@
+.TH job_enable 1 "20 Jan 2010" "Jobserver" "User Commands"
+.SH NAME
+job enable, job disable \- enable and disable jobs
+.SH SYNOPSIS
+.LP
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIid\fR
+.fi
+
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIid\fR
+.fi
+
+.SH DESCRIPTION
+.LP
+These commands are used to enable and disable jobs.  Enabling a job causes
+the jobserver to attempt to start it, and disabling a job will stop it.  See
+\fBjob\fR(1) for more information.
+
+.LP
+The \fBjob enable\fR command is not used to schedule recurring jobs.  Use
+\fBjob_schedule\fR(1) for that.
+
+.SH USAGE
+.LP
+.SS "\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIid\fR"
+
+Requests the jobserver to enable the job \fIid\fR.
+
+.LP
+.SS "\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIid\fR"
+Requests the jobserver to disable the job \fIid\fR.
+
+.SH SEE ALSO
+\fBjob\fR(1), \fBjob_schedure\fR(1)

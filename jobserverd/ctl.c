@@ -984,7 +984,8 @@ rctl_qty_t	 value;
 	if ((value = job_get_rctl(job, ctl)) == (rctl_qty_t) -1)
 		(void) ctl_printf(client, "500 Resource control \"%s\" not set.\r\n", ctl);
 	else
-		(void) ctl_printf(client, "200 %llu\r\n", (u_longlong_t) value);
+		(void) ctl_printf(client, "200 %s\r\n",
+			format_rctl(value, get_rctl_type(ctl)));
 
 err:
 	free_job(job);

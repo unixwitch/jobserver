@@ -1,0 +1,4 @@
+*.o
+.make.state
+*.swp
+core

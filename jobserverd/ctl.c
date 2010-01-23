@@ -1109,7 +1109,7 @@ char	*opt, *value;
 
 	value = next_word(&line);
 
-	if (!strcmp(opt, "maxjobs")) {
+	if (!strcmp(opt, "jobs-per-user")) {
 
 		if (value) {
 		int	 njobs;

@@ -48,6 +48,10 @@ job \- manage jobs
 .fi
 
 .nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstop\fR \fIid\fR
+.fi
+
+.nf
 \fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBlimit\fR \fIjob\fR \fIcontrol\fR [\fIvalue\fR]
 .fi
 
@@ -208,10 +212,12 @@ Clear the maintenance state on a job.  See \fBjob_clear\fR(1).
 \fBjob unschedule\fR
 .br
 \fBjob start\fR
+.br
+\fBjob stop\fR
 .ad
 .RS 5n
 .rt
-Schedule or unschedule a job, or force a scheduled job to run.
+Schedule or unschedule a job, or force a scheduled job to run or stop.
 See \fBjob_schedule\fR(1).
 .RE
 

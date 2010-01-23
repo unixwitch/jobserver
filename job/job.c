@@ -59,6 +59,7 @@ static int	c_unlimit(int, char **);
 static int	c_quota(int, char **);
 static int	c_start(int, char **);
 static int	c_unset(int, char **);
+static int	c_stop(int, char **);
 
 static struct {
 	char const	*cmd;
@@ -85,6 +86,7 @@ static struct {
 	{ "quota",	c_quota },
 	{ "start",	c_start },
 	{ "unset",	c_unset },
+	{ "stop",	c_stop },
 };
 
 static int debug;
@@ -168,6 +170,10 @@ char const *u_start =
 "       job [-D] start <id>\n"
 "\n"
 "         Cause a scheduled job to be started immediately.\n";
+char const *u_stop =
+"       job [-D] stop <id>\n"
+"\n"
+"         Cause a running scheduled job to be stopped.\n";
 static void
 usage()
 {
@@ -184,6 +190,7 @@ usage()
 	(void) fprintf(stderr, "%s\n", u_limit);
 	(void) fprintf(stderr, "%s\n", u_quota);
 	(void) fprintf(stderr, "%s\n", u_start);
+	(void) fprintf(stderr, "%s\n", u_stop);
 	(void) fprintf(stderr, 
 "Global options:\n"
 "      -D      Enable debug mode.\n"
@@ -497,13 +504,28 @@ c_enable (argc, argv)
 }
 
 int
+c_stop(argc, argv)
+	int argc;
+	char **argv;
+{
+	if (argc != 2) {
+		fprintf(stderr, "stop: wrong number of arguments\n\n");
+		fprintf(stderr, "%s", u_stop);
+		return 1;
+	}
+
+	simple_command("STOP %s", argv[1]);
+	return 0;
+}
+
+int
 c_start(argc, argv)
 	int argc;
 	char **argv;
 {
 	if (argc != 2) {
 		fprintf(stderr, "start: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_endis);
+		fprintf(stderr, "%s", u_start);
 		return 1;
 	}
 

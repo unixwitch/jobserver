@@ -16,10 +16,15 @@ job schedule, job unschedule \- schedule or unschedule a job
 \fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstart\fR \fIid\fR
 .fi
 
+.nf
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstop\fR \fIid\fR
+.fi
+
 .SH DESCRIPTION
 .LP
 Use this command to schedule a recurring job to run at a particular time,
-or unschedule an already scheduled job.
+to unschedule an already scheduled job, or to stop a running scheduled
+job.
 
 .SS "job sched"
 .LP
@@ -54,7 +59,13 @@ returning it to the \fBdisabled\fR state.
 .LP
 The \fBjob start\fR command forces a scheduled job to start running
 immediately.  After the job exits, it will revert back to a scheduled
-job.
+job., or to stop a running scheduled
+
+.SS "job stop"
+.LP
+The \fBjob stop\fR command causes a currently running scheduled job
+to stop.  The job is not unscheduled and will run again at its next
+scheduled time.
 
 .SH EXAMPLES
 

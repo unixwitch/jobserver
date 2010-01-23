@@ -65,6 +65,7 @@ void	c_clrr(ctl_client_t *, char *);
 void	c_conf(ctl_client_t *, char *);
 void	c_strt(ctl_client_t *, char *);
 void	c_uset(ctl_client_t *, char *);
+void	c_stop(ctl_client_t *, char *);
 
 static void ctl_client_accept(int, fde_evt_type_t, void *);
 static void ctl_readline(int, char *, size_t, void *);
@@ -94,6 +95,7 @@ static struct {
 	{ "CONF",	RUNNING,	c_conf },	/* Configure	*/
 	{ "STRT",	RUNNING,	c_strt },	/* Start	*/
 	{ "USET",	RUNNING,	c_uset },	/* Unset	*/
+	{ "STOP",	RUNNING,	c_stop },	/* Stop		*/
 };
 
 static ctl_client_t *clients;
@@ -715,6 +717,54 @@ err:
 	free_job(job);
 }
 
+void
+c_stop(client, line)
+	ctl_client_t	*client;
+	char		*line;
+{
+char		*ids, *endp = NULL;
+job_id_t	 id;
+job_t		*job = NULL;
+	if ((ids = next_word(&line)) == NULL) {
+		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+		goto err;
+	}
+
+	/*LINTED*/
+	id = strtoll(ids, &endp, 10);
+	if (endp != (ids + strlen(ids))) {
+		(void) ctl_printf(client, "500 Invalid format.\r\n");
+		goto err;
+	}
+
+	if ((job = find_job(id)) == NULL) {
+		(void) ctl_printf(client, "500 No such job.\r\n");
+		goto err;
+	}
+
+	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_STARTSTOP)) {
+		(void) ctl_printf(client, "500 Permission denied.\r\n");
+		goto err;
+	}
+
+	if (!(job->job_flags & JOB_SCHEDULED)) {
+		(void) ctl_printf(client, "500 Job is not scheduled.\r\n");
+		goto err;
+	}
+
+	if (sched_get_state(job->job_id) != SJOB_RUNNING) {
+		(void) ctl_printf(client, "500 Job is not running.\r\n");
+		goto err;
+	}
+
+	if (sched_stop(job->job_id) == -1)
+		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
+	else
+		(void) ctl_printf(client, "200 OK.\r\n");
+
+err:
+	free_job(job);
+}
 void
 c_schd(client, line)
 	ctl_client_t	*client;

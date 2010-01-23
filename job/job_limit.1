@@ -5,7 +5,7 @@ job limit, job unlimit \- configure job resource limits
 .SH SYNOPSIS
 .LP
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBlimit\fR \fIid\fR \fIlimit\fR [\fIvalue\fI]
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBlimit\fR [\fB-r\fR] \fIid\fR \fIlimit\fR [\fIvalue\fI]
 .fi
 
 .nf
@@ -56,11 +56,23 @@ Use this command to apply a limit to a process.  \fIlimit\fR should be
 a valid resource limit, and \fIvalue\fR is the value to limit the resource
 to.
 
-.SS "job limit \fIid\fR \fIlimit\fR"
-.SS "job limit \fIid\fR"
+.SS "job limit [-r] \fIid\fR \fIlimit\fR"
+.SS "job limit [-r] \fIid\fR"
 .LP
 Use this command to view the existing value of a limit, if any.  If no
 limit is specified, all limits will be printed.
+
+The \fBjob limit\fR command accepts the following option:
+
+.ne 2
+.mk
+.na
+\fB-r\fR
+.ad
+.RS 13n
+.rt
+Display the limit in 'raw' form, e.g. bytes or seconds.
+.RE
 
 .SS "job unlimit \fIid\fR \fIlimit\fR"
 .LP

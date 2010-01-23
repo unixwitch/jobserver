@@ -154,7 +154,7 @@ char const *u_unschedule =
 "\n"
 "         Unschedule a previously scheduled job.\n";
 char const *u_limit =
-"       job [-D] limit <job> <control> [value]\n"
+"       job [-D] limit [-r] <job> <control> [value]\n"
 "       job [-D] unlimit <job> <control>\n"
 "\n"
 "         View, set or clear the resource control <control> for the specified\n"
@@ -539,15 +539,32 @@ c_limit(argc, argv)
 	char **argv;
 {
 char	*vec[NARG];
-	if (argc < 2 || argc > 4) {
+int	 c, raw = 0;
+	optind = 1;
+
+	while ((c = getopt(argc, argv, "r")) != -1) {
+		switch (c) {
+		case 'r':
+			raw++;
+			break;
+
+		default:
+			(void) fprintf(stderr, "%s", u_limit);
+			return 1;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1 || argc > 3) {
 		fprintf(stderr, "limit: wrong number of arguments\n\n");
 		fprintf(stderr, "%s", u_limit);
 		return 1;
 	}
 
-	if (argc == 2) {
+	if (argc == 1) {
 	reply_t	*rep;
-		put_server("LISR %s", argv[1]);
+		put_server("LISR %s%s", argv[0], raw ? " RAW" : "");
 		while (rep = read_line()) {
 			switch (rep->numeric) {
 			case 200:
@@ -566,12 +583,12 @@ char	*vec[NARG];
 
 		(void) fprintf(stderr, "job: unexpected EOF\n");
 		return 1;
-	} else if (argc == 3) {
+	} else if (argc == 2) {
 	reply_t	*rep;
-		rep = simple_command("GETR %s %s", argv[1], argv[2]);
-		(void) printf("%s = %s\n", argv[2], rep->text);
+		rep = simple_command("GETR %s %s%s", argv[0], argv[1], raw ? " RAW" : "");
+		(void) printf("%s = %s\n", argv[1], rep->text);
 	} else
-		simple_command("SETR %s %s %s", argv[1], argv[2], argv[3]);
+		simple_command("SETR %s %s %s", argv[0], argv[1], argv[2]);
 	
 	return 0;
 }

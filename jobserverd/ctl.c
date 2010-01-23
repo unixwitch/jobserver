@@ -1004,10 +1004,11 @@ c_getr(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*arg, *endp = NULL;
+char		*arg, *raws, *endp = NULL;
 job_id_t	 id;
 job_t		*job = NULL;
 char		*ctl;
+int		 raw = 0;
 rctl_qty_t	 value;
 
 	if ((arg = next_word(&line)) == NULL ||
@@ -1015,6 +1016,9 @@ rctl_qty_t	 value;
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
 		goto err;
 	}
+
+	if ((raws = next_word(&line)) && !strcmp(raws, "RAW"))
+		raw = 1;
 
 	/*LINTED*/
 	id = strtol(arg, &endp, 10);
@@ -1037,8 +1041,11 @@ rctl_qty_t	 value;
 	if ((value = job_get_rctl(job, ctl)) == (rctl_qty_t) -1)
 		(void) ctl_printf(client, "500 Resource control \"%s\" not set.\r\n", ctl);
 	else
-		(void) ctl_printf(client, "200 %s\r\n",
-			format_rctl(value, get_rctl_type(ctl)));
+		if (raw)
+			(void) ctl_printf(client, "200 %llu\r\n", value);
+		else
+			(void) ctl_printf(client, "200 %s\r\n",
+				format_rctl(value, get_rctl_type(ctl)));
 
 err:
 	free_job(job);
@@ -1104,15 +1111,18 @@ c_lisr(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*arg, *endp = NULL;
+char		*arg, *raws, *endp = NULL;
 job_id_t	 id;
 job_t		*job = NULL;
-int		 i;
+int		 i, raw = 0;
 
 	if ((arg = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
 		goto err;
 	}
+
+	if ((raws = next_word(&line)) && !strcmp(raws, "RAW"))
+		raw = 1;
 
 	/*LINTED*/
 	id = strtol(arg, &endp, 10);
@@ -1132,10 +1142,15 @@ int		 i;
 	}
 
 	for (i = 0; i < job->job_nrctls; ++i) {
-		(void) ctl_printf(client, "200 %s %s\r\n",
-				job->job_rctls[i].jr_name,
-				format_rctl(job->job_rctls[i].jr_value,
-					get_rctl_type(job->job_rctls[i].jr_name)));
+		if (raw)
+			(void) ctl_printf(client, "200 %s %llu\r\n",
+					job->job_rctls[i].jr_name,
+					(u_longlong_t) job->job_rctls[i].jr_value);
+		else
+			(void) ctl_printf(client, "200 %s %s\r\n",
+					job->job_rctls[i].jr_name,
+					format_rctl(job->job_rctls[i].jr_value,
+						get_rctl_type(job->job_rctls[i].jr_name)));
 	}
 
 	(void) ctl_printf(client, "201 End of resource control list.\r\n");

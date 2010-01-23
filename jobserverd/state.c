@@ -18,6 +18,8 @@
 #include	<libnvpair.h>
 #include	<alloca.h>
 #include	<rctl.h>
+#include	<project.h>
+#include	<pwd.h>
 
 #include	"jobserver.h"
 #include	"state.h"
@@ -1336,6 +1338,18 @@ char	*np = NULL;
 	assert(proj);
 
 	if (proj && *proj && strcmp(proj, "default")) {
+	char		 nssbuf[PROJECT_BUFSZ];
+	struct passwd	*pwd;
+
+		/*
+		 * Make sure the user is actually in the project.
+		 */
+		if ((pwd = getpwuid(job->job_user)) == NULL)
+			goto err;
+
+		if (!inproj(pwd->pw_name, job->job_project, nssbuf, sizeof(nssbuf)))
+			goto err;
+
 		if ((np = strdup(proj)) == NULL) {
 			logm(LOG_ERR, "job_set_project: out of memory");
 			goto err;

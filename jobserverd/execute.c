@@ -165,67 +165,21 @@ int		 lwfd;
 	assert(cmd);
 
 	if ((pwd = getpwuid(job->job_user)) == NULL) {
-		logm(LOG_ERR, "user (uid=%ld) doesn't exist", (long) job->job_user);
+		logm(LOG_ERR, "fork_execute: (uid=%ld) doesn't exist", (long) job->job_user);
 		goto err;
 	}
 
 	if (asprintf(&logdir, "%s/.job", pwd->pw_dir) == -1) {
-		logm(LOG_ERR, "sched_start: out of memory");
+		logm(LOG_ERR, "fork_execute: out of memory");
 		goto err;
 	}
 
 	if (asprintf(&logfile, "%s/job_%ld.log", logdir, (long) job->job_id) == -1) {
-		logm(LOG_ERR, "sched_start: out of memory");
+		logm(LOG_ERR, "fork_execute: out of memory");
 		goto err;
 	}
-
 
 	(void) fflush(stdout);
-
-	/*
-	 * Do initial preperation before forking, so we can record any
-	 * failures before the log file is opened.
-	 */
-
-	if (setegid(pwd->pw_gid) == -1) {
-		logm(LOG_ERR, "sched_start: setegid: %s", strerror(errno));
-		goto err;
-	}
-
-	if (seteuid(job->job_user) == -1) {
-		logm(LOG_ERR, "sched_start: seteuid: %s", strerror(errno));
-		goto err;
-	}
-
-	if ((devnullfd = open("/dev/null", O_RDONLY)) == -1) {
-		logm(LOG_ERR, "sched_start: /dev/null: %s", strerror(errno));
-		goto err;
-	}
-
-	if (mkdir(logdir, 0700) == -1 && errno != EEXIST) {
-		logm(LOG_ERR, "sched_start: mkdir(%s): %s", logdir, strerror(errno));
-		goto err;
-	}
-
-	/*LINTED*/
-	if ((logfd = open(logfile, O_RDWR | O_CREAT | O_APPEND, 0600)) == -1) {
-		logm(LOG_ERR, "sched_start: open(%s): %s", logfile, strerror(errno));
-		goto err;
-	}
-
-	/*
-	 * Need to un-seteuid before we fork, otherwise the child can't
-	 * initgroups().
-	 */
-	if (seteuid(0) == -1) {
-		logm(LOG_ERR, "sched_start: seteuid: %s", strerror(errno));
-		exit(1);
-	}
-
-	if (setegid(0) == -1) {
-		logm(LOG_ERR, "sched_start: setegid: %s", strerror(errno));
-		exit(1);
-	}
 
 	switch (pid = fork()) {
 	case -1:
@@ -237,24 +191,17 @@ int		 lwfd;
 	char	**env;
 	int	  i = 0;
 
-		if (dup2(devnullfd, STDIN_FILENO) == -1 ||
-		    dup2(logfd, STDOUT_FILENO) == -1 ||
-		    dup2(logfd, STDERR_FILENO) == -1) {
-			exit(1);
-		}
-
-		(void) close(logfd);
-		(void) close(devnullfd);	
-
+		/*
+		 * Ideally, all of this output would go to the logfile, but we can't
+		 * open the logfile as root.
+		 */
 		if (getdefaultproj(pwd->pw_name, &proj, nssbuf, sizeof(nssbuf)) == NULL) {
-			(void) printf("[ getdefaultproj: %s ]\n", strerror(errno));
-			(void) printf("[ Job start aborted. ]\n");
+			logm(LOG_ERR, "fork_execute: getdefaultproj: %s", strerror(errno));
 			exit(1);
 		}
 
 		if (setproject(proj.pj_name, pwd->pw_name, TASK_NORMAL) != 0) {
-			(void) printf("[ setproject: %s ]\n", strerror(errno));
-			(void) printf("[ Job start aborted. ]\n");
+			logm(LOG_ERR, "fork_execute: setproject: %s", strerror(errno));
 			exit(1);
 		}
 
@@ -265,30 +212,53 @@ int		 lwfd;
 				 * issue.
 				 */
 				if (setproject(job->job_project, pwd->pw_name, TASK_NORMAL) != 0)
-					(void) printf("[ setproject: %s ]\n", strerror(errno));
+					logm(LOG_ERR, "fork_execute: setproject: %s", strerror(errno));
 			} else {
-				(void) printf("[ Warning: user \"%s\" is not a member of project \"%s\" ]\n",
+				logm(LOG_ERR, "Warning: user \"%s\" is not a member of project \"%s\"",
 						pwd->pw_name, job->job_project);
 			}
 		}
 					
 		if (initgroups(pwd->pw_name, pwd->pw_gid) == -1) {
-			(void) printf("[ initgroups: %s ]\n", strerror(errno));
-			(void) printf("[ Job start aborted. ]\n");
+			logm(LOG_ERR, "fork_execute: initgroups: %s", strerror(errno));
 			exit(1);
 		}
 
 		if (setgid(pwd->pw_gid) == -1) {
-			(void) printf("[ setgid: %s ]\n", strerror(errno));
-			(void) printf("[ Job start aborted. ]\n");
+			logm(LOG_ERR, "fork_execute: setgid: %s", strerror(errno));
 			exit(1);
 		}
 
 		if (setuid(pwd->pw_uid) == -1) {
-			(void) printf("[ setuid: %s ]\n", strerror(errno));
-			(void) printf("[ Job start aborted. ]\n");
+			logm(LOG_ERR, "fork_execute: setuid: %s", strerror(errno));
 			exit(1);
 		}
+
+		if ((devnullfd = open("/dev/null", O_RDONLY)) == -1) {
+			logm(LOG_ERR, "fork_execute: /dev/null: %s", strerror(errno));
+			exit(1);
+		}
+
+		if (mkdir(logdir, 0700) == -1 && errno != EEXIST) {
+			logm(LOG_ERR, "fork_execute: mkdir(%s): %s", logdir, strerror(errno));
+			exit(1);
+		}
+
+		/*LINTED*/
+		if ((logfd = open(logfile, O_RDWR | O_CREAT | O_APPEND, 0600)) == -1) {
+			logm(LOG_ERR, "fork_execute: %s: %s", logdir, strerror(errno));
+			exit(1);
+			goto err;
+		}
+
+		if (dup2(devnullfd, STDIN_FILENO) == -1 ||
+		    dup2(logfd, STDOUT_FILENO) == -1 ||
+		    dup2(logfd, STDERR_FILENO) == -1) {
+			exit(1);
+		}
+
+		(void) close(logfd);
+		(void) close(devnullfd);	
 
 		if (chdir(pwd->pw_dir) == -1) {
 			(void) printf("[ chdir(%s): %s ]\n", pwd->pw_dir, strerror(errno));
@@ -354,16 +324,6 @@ int		 lwfd;
 	return pid;
 
 err:
-	if (geteuid() != 0 && seteuid(0) == -1) {
-		logm(LOG_ERR, "sched_start: seteuid: %s", strerror(errno));
-		exit(1);
-	}
-
-	if (getegid() != 0 && setegid(0) == -1) {
-		logm(LOG_ERR, "sched_start: setegid: %s", strerror(errno));
-		exit(1);
-	}
-
 	free(logfile);
 	free(logdir);
 	return -1;

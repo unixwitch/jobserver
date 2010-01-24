@@ -187,8 +187,13 @@ int		 lwfd;
 	 * failures before the log file is opened.
 	 */
 
+	if (setegid(pwd->pw_gid) == -1) {
+		logm(LOG_ERR, "sched_start: setegid: %s", strerror(errno));
+		goto err;
+	}
+
 	if (seteuid(job->job_user) == -1) {
-		logm(LOG_ERR, "sched_start: setuid: %s", strerror(errno));
+		logm(LOG_ERR, "sched_start: seteuid: %s", strerror(errno));
 		goto err;
 	}
 
@@ -217,7 +222,10 @@ int		 lwfd;
 		exit(1);
 	}
 
-	(void) fchown(logfd, -1, pwd->pw_gid);
+	if (setegid(0) == -1) {
+		logm(LOG_ERR, "sched_start: setegid: %s", strerror(errno));
+		exit(1);
+	}
 
 	switch (pid = fork()) {
 	case -1:
@@ -348,6 +356,11 @@ int		 lwfd;
 err:
 	if (geteuid() != 0 && seteuid(0) == -1) {
 		logm(LOG_ERR, "sched_start: seteuid: %s", strerror(errno));
+		exit(1);
+	}
+
+	if (getegid() != 0 && setegid(0) == -1) {
+		logm(LOG_ERR, "sched_start: setegid: %s", strerror(errno));
 		exit(1);
 	}
 

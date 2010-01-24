@@ -568,6 +568,15 @@ sched_handle_exit(sjob)
 	sjob_t	*sjob;
 {
 job_t	*job;
+char	 msg[4096];
+char	 hostname[64];
+struct passwd	*pwd;
+
+	if (gethostname(hostname, sizeof(hostname)) == -1)
+		strlcpy(hostname, "unknown", sizeof(hostname));
+	else
+		hostname[sizeof(hostname) - 1] = 0;
+
 	if (sjob->sjob_fatal)
 		return;
 	sjob->sjob_fatal = 1;
@@ -575,19 +584,42 @@ job_t	*job;
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
+	if ((job->job_exit_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+		snprintf(msg, sizeof(msg),
+			"To: %s\n"
+			"Subject: Job %d (%s) exited\n"
+			"\n"
+			"Your job, %s (id %d), on the host \"%s\" has exited successfully.\n",
+			pwd->pw_name, 
+			(int) job->job_id, 
+			job->job_name,
+			job->job_name,
+			(int) job->job_id,
+			hostname);
+	}
+
 	if ((job->job_flags & JOB_ENABLED) &&
 	    sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
 		if (job_set_maintenance(job, "Restarting too quickly") == -1)
 			logm(LOG_WARNING, "job %ld: could not set maintenance",
 					(long) job->job_id);
-		free_job(job);
-		return;
+		if (job->job_exit_action & ST_EXIT_MAIL)
+			strlcat(msg, "\nThe job did not run for long enough, and has been "
+					"placed in the maintenance state.\n", sizeof(msg));
 	}
 
-	if (job->job_exit_action & ST_EXIT_DISABLE)
+	if (job->job_exit_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
-			logm(LOG_WARNING, "sched_handle_exit: job_disabled failed");
+			logm(LOG_WARNING, "sched_handle_exit: job_disable failed");
+		if (job->job_exit_action & ST_EXIT_MAIL)
+			strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
+	}
 
+	if (job->job_exit_action & ST_EXIT_MAIL) {
+		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
+		if (send_mail(pwd->pw_name, msg) == -1)
+			logm(LOG_ERR, "sched_handle_fail: cannot send mail: %s", strerror(errno));
+	}
 	free_job(job);
 }
 
@@ -596,6 +628,9 @@ sched_handle_fail(sjob)
 	sjob_t	*sjob;
 {
 job_t	*job;
+char	 msg[4096];
+char	 hostname[64];
+struct passwd	*pwd;
 
 	if (sjob->sjob_fatal)
 		return;
@@ -604,9 +639,33 @@ job_t	*job;
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
-	if (job->job_fail_action & ST_EXIT_DISABLE)
+	if ((job->job_fail_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+		snprintf(msg, sizeof(msg),
+			"To: %s\n"
+			"Subject: Job %d (%s) failed\n"
+			"\n"
+			"Your job, %s (id %d), on the host \"%s\" has failed.\n",
+			pwd->pw_name, 
+			(int) job->job_id, 
+			job->job_name,
+			job->job_name,
+			(int) job->job_id,
+			hostname);
+	}
+
+	if (job->job_fail_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_fail: job_disabled failed");
+		else
+			if (job->job_fail_action & ST_EXIT_MAIL)
+				strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
+	}
+
+	if (job->job_exit_action & ST_EXIT_MAIL) {
+		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
+		if (send_mail(pwd->pw_name, msg) == -1)
+			logm(LOG_ERR, "sched_handle_fail: cannot send mail: %s", strerror(errno));
+	}
 	
 	free_job(job);
 }
@@ -615,18 +674,45 @@ static void
 sched_handle_crash(sjob)
 	sjob_t	*sjob;
 {
-job_t	*job;
+job_t		*job;
+char		 msg[4096];
+char		 hostname[64];
+struct passwd	*pwd;
 
 	if (sjob->sjob_fatal)
 		return;
 	sjob->sjob_fatal = 1;
 
+	if ((job->job_crash_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+		snprintf(msg, sizeof(msg),
+			"To: %s\n"
+			"Subject: Job %d (%s) failed\n"
+			"\n"
+			"Your job, %s (id %d), on the host \"%s\" has crashed.\n",
+			pwd->pw_name, 
+			(int) job->job_id, 
+			job->job_name,
+			job->job_name,
+			(int) job->job_id,
+			hostname);
+	}
+
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
-	if (job->job_crash_action & ST_EXIT_DISABLE)
+	if (job->job_crash_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_crash: job_disabled failed");
+		else
+			if (job->job_fail_action & ST_EXIT_MAIL)
+				strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
+	}
+
+	if (job->job_exit_action & ST_EXIT_MAIL) {
+		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
+		if (send_mail(pwd->pw_name, msg) == -1)
+			logm(LOG_ERR, "sched_handle_crash: cannot send mail: %s", strerror(errno));
+	}
 
 	free_job(job);
 }

@@ -935,8 +935,8 @@ job_set_schedule(job, sched)
 	char const	*sched;
 {
 cron_t	 cron;
-int	 i, j;
-char	 s[16];
+int	 i, j, y, mo, d, h, mi;
+char	 s[64];
 
 	if (job->job_flags & JOB_ENABLED) {
 		errno = EINVAL;
@@ -998,6 +998,54 @@ char	 s[16];
 		else if (strcasecmp(s, "saturday") == 0)
 			cron.cron_arg1 = 6;
 		else {
+			errno = EINVAL;
+			goto err;
+		}
+	} else if (sscanf(sched, "in %d minutes", &i) == 1 || 
+	           sscanf(sched, "in %d minute", &i) == 1) {
+		cron.cron_type = CRON_ABSOLUTE;
+		cron.cron_arg1 = time(NULL) + (i * 60);
+	} else if (sscanf(sched, "in %d hours", &i) == 1 ||
+	           sscanf(sched, "in %d hour", &i) == 1) {
+		cron.cron_type = CRON_ABSOLUTE;
+		cron.cron_arg1 = time(NULL) + (i * 60 * 60);
+	} else if (sscanf(sched, "in %d days", &i) == 1 ||
+	           sscanf(sched, "in %d day", &i) == 1) {
+		cron.cron_type = CRON_ABSOLUTE;
+		cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24);
+	} else if (sscanf(sched, "in %d weeks", &i) == 1 ||
+	           sscanf(sched, "in %d week", &i) == 1) {
+		cron.cron_type = CRON_ABSOLUTE;
+		cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24 * 7);
+	} else if (sscanf(sched, "at %d-%d-%d %d:%d", &y, &mo, &d, &h, &mi) == 5) {
+	struct tm	tm;
+		bzero(&tm, sizeof(tm));
+		tm.tm_year = y - 1900;
+		tm.tm_mon = mo - 1;
+		tm.tm_mday = d;
+		tm.tm_hour = h;
+		tm.tm_min = mi;
+		cron.cron_type = CRON_ABSOLUTE;
+		cron.cron_arg1 = mktime(&tm);
+
+		if (cron.cron_arg1 < time(NULL)) {
+			errno = EINVAL;
+			goto err;
+		}
+	} else if (sscanf(sched, "at %d:%d", &h, &mi) == 2) {
+	time_t		 now = time(NULL);
+	struct tm	*tm = gmtime(&now);
+		tm->tm_hour = h;
+		tm->tm_min = mi;
+		cron.cron_type = CRON_ABSOLUTE;
+		cron.cron_arg1 = mktime(tm);
+
+		if (cron.cron_arg1 < time(NULL)) {
+			tm->tm_mday++;
+			cron.cron_arg1 = mktime(tm);
+		}
+
+		if (cron.cron_arg1 < time(NULL)) {
 			errno = EINVAL;
 			goto err;
 		}

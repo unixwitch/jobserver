@@ -44,7 +44,23 @@ _
 every day at \fIHH\fR:\fIMM\fR	every day at 03:00
 _
 every \fIDAY\fR at \fIHH\fR:\fIMM\fR	every sunday at 03:00
+_
+in N minute(s)	in 1 minute
+_
+in N hour(s)	in 2 hours
+_
+in N days(s)	in 3 days
+_
+in N week(s)	in 4 weeks
+_
+at YYYY-MM-DD MM:HH	at 2010-01-24 03:35
+_
+at MM:HH	at 03:35
 .TE
+
+.LP
+Note that the \fBat <DATE>\fR syntax is special; once the job has run
+once, it will be disabled, instead of rescheduled.
 
 .LP
 An enabled job cannot be scheduled; disable the job with \fBjob disable\fR

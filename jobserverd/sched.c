@@ -480,7 +480,13 @@ int		 i;
 								(long) job->job_id);
 				}
 			} else if (job->job_flags & JOB_SCHEDULED) {
-				sched_job_scheduled(job->job_id);
+				if (job->job_schedule.cron_type != CRON_ABSOLUTE)
+					sched_job_scheduled(job->job_id);
+				else {
+					if (job_unschedule(job) == -1)
+						logm(LOG_ERR, "job %ld: cannot unschedule: %s",
+								(long) job->job_id, strerror(errno));
+				}
 			}
 		}
 

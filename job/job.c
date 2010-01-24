@@ -753,6 +753,8 @@ char	*vec[NARG];
 			break;
 
 		case 201:
+			if (first)
+				(void) printf(" -\n");
 			return 0;
 
 		default:

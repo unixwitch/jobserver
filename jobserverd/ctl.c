@@ -825,6 +825,7 @@ job_id_t	 id;
 job_t		*job = NULL;
 char const	*state, *rstate;
 char		 buf[64];
+struct passwd	*pwd;
 
 	if ((arg = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
@@ -876,7 +877,11 @@ char		 buf[64];
 	}
 
 	(void) ctl_printf(client, "201 :%ld\r\n", (long) job->job_id);
-	(void) ctl_printf(client, "202 :%ld\r\n", (long) job->job_user);
+
+	if ((pwd = getpwuid(job->job_user)) == NULL)
+		(void) ctl_printf(client, "202 :%ld\r\n", (long) job->job_user);
+	else
+		(void) ctl_printf(client, "202 :%s\r\n", pwd->pw_name);
 	(void) ctl_printf(client, "203 :%s\r\n", job->job_name);
 	(void) ctl_printf(client, "204 :%s\r\n", state);
 	(void) ctl_printf(client, "205 :%s\r\n", rstate);

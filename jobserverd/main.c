@@ -15,8 +15,6 @@
  * of (re)starting jobs at the appropriate time.
  */
 
-#pragma ident "@(#) $Id$"
-
 #include	<sys/types.h>
 
 #include	<stdio.h>

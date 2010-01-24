@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 /*
  * Holds the database of configured jobs.
  */

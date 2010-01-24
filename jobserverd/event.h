@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 /*
  * Simple interface to trigger one-off or repeating events.
  */

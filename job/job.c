@@ -10,8 +10,6 @@
  * Job client: allow users to interact with the jobserver.
  */
 
-#pragma ident "@(#) $Id$"
-
 #include	<sys/types.h>
 #include	<sys/stropts.h>
 

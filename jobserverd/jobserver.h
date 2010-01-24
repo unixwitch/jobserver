@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 #ifndef JOBSERVER_H
 #define JOBSERVER_H
 

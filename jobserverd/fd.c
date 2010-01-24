@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 #include	<assert.h>
 #include	<unistd.h>
 #include	<poll.h>

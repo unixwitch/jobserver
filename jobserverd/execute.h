@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 #ifndef EXECUTE_H
 #define EXECUTE_H
 

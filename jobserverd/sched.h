@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 /*
  * The scheduler is responsible for starting and stopping jobs, and handling
  * process events.

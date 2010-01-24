@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 #include	<sys/task.h>
 #include	<sys/ctfs.h>
 

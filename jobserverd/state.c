@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 #include	<sys/stat.h>
 #include	<errno.h>
 #include	<string.h>

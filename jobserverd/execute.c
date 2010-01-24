@@ -6,8 +6,6 @@
  * warranty.
  */
 
-#pragma ident "@(#) $Id$"
-
 /*
  * Handles starting the job process, including setting up the initial execution
  * environment.

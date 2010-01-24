@@ -661,7 +661,7 @@ struct passwd	*pwd;
 				strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
 	}
 
-	if (job->job_exit_action & ST_EXIT_MAIL) {
+	if (job->job_fail_action & ST_EXIT_MAIL) {
 		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
 		if (send_mail(pwd->pw_name, msg) == -1)
 			logm(LOG_ERR, "sched_handle_fail: cannot send mail: %s", strerror(errno));
@@ -708,7 +708,7 @@ struct passwd	*pwd;
 				strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
 	}
 
-	if (job->job_exit_action & ST_EXIT_MAIL) {
+	if (job->job_crash_action & ST_EXIT_MAIL) {
 		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
 		if (send_mail(pwd->pw_name, msg) == -1)
 			logm(LOG_ERR, "sched_handle_crash: cannot send mail: %s", strerror(errno));

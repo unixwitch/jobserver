@@ -999,22 +999,24 @@ char	 s[64];
 			errno = EINVAL;
 			goto err;
 		}
-	} else if (sscanf(sched, "in %d minutes", &i) == 1 || 
+	} else if (sscanf(sched, "in %d %15s", &i, s) == 1 || 
 	           sscanf(sched, "in %d minute", &i) == 1) {
-		cron.cron_type = CRON_ABSOLUTE;
-		cron.cron_arg1 = time(NULL) + (i * 60);
-	} else if (sscanf(sched, "in %d hours", &i) == 1 ||
-	           sscanf(sched, "in %d hour", &i) == 1) {
-		cron.cron_type = CRON_ABSOLUTE;
-		cron.cron_arg1 = time(NULL) + (i * 60 * 60);
-	} else if (sscanf(sched, "in %d days", &i) == 1 ||
-	           sscanf(sched, "in %d day", &i) == 1) {
-		cron.cron_type = CRON_ABSOLUTE;
-		cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24);
-	} else if (sscanf(sched, "in %d weeks", &i) == 1 ||
-	           sscanf(sched, "in %d week", &i) == 1) {
-		cron.cron_type = CRON_ABSOLUTE;
-		cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24 * 7);
+		if (!strcmp(s, "minutes") || !strcmp(s, "minute")) {
+			cron.cron_type = CRON_ABSOLUTE;
+			cron.cron_arg1 = time(NULL) + (i * 60);
+		} else if (!strcmp(s, "hours") || !strcmp(s, "hour")) {
+			cron.cron_type = CRON_ABSOLUTE;
+			cron.cron_arg1 = time(NULL) + (i * 60 * 60);
+		} else if (!strcmp(s, "days") || !strcmp(s, "day")) {
+			cron.cron_type = CRON_ABSOLUTE;
+			cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24);
+		} else if (!strcmp(s, "weeks") || !strcmp(s, "week")) {
+			cron.cron_type = CRON_ABSOLUTE;
+			cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24 * 7);
+		} else {
+			errno = EINVAL;
+			goto err;
+		}
 	} else if (sscanf(sched, "at %d-%d-%d %d:%d", &y, &mo, &d, &h, &mi) == 5) {
 	struct tm	tm;
 		bzero(&tm, sizeof(tm));
@@ -1123,6 +1125,47 @@ int		 a1, a2;
 	default:
 		return "unknown";
 	}
+}
+
+char *
+cron_to_string_interval(cron)
+	cron_t	*cron;
+{
+time_t		when = sched_nextrun(cron) - time(NULL);
+static char	buf[128];
+size_t		i = 0;
+
+	if (when <= 0)
+		return "a very short time";
+
+	if (when > (60*60*24*7)) {
+		snprintf(buf + i, sizeof(buf) - i, "%dw", (when / (60 * 60 * 24 * 7)));
+		i += strlen(buf + i);
+		when %= (60 * 60 * 24 * 7);
+	}
+
+	if (when > (60*60*24)) {
+		snprintf(buf + i, sizeof(buf) - i, "%dd", (when / (60 * 60 * 24)));
+		i += strlen(buf + i);
+		when %= (60 * 60 * 24);
+	}
+
+	if (when > (60*60)) {
+		snprintf(buf + i, sizeof(buf) - i, "%dh", (when / (60 * 60)));
+		i += strlen(buf + i);
+		when %= (60 * 60);
+	}
+
+	if (when > 60) {
+		snprintf(buf + i, sizeof(buf) - i, "%dm", (when / 60));
+		i += strlen(buf + i);
+		when %= 60;
+	}
+
+	if (when)
+		snprintf(buf + i, sizeof(buf) - i, "%ds", when);
+
+	return buf;
 }
 
 int

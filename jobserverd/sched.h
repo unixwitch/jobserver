@@ -65,4 +65,9 @@ void sched_job_deleted(job_id_t);
 void sched_job_scheduled(job_id_t);
 void sched_job_unscheduled(job_id_t);
 
+/*
+ * Get the next runtime of a scheduled job.
+ */
+time_t sched_nextrun(cron_t *);
+
 #endif	/* !SCHED_H */

@@ -912,9 +912,10 @@ struct passwd	*pwd;
 		(void) ctl_printf(client, "209 :%s\r\n", job->job_project);
 	else
 		(void) ctl_printf(client, "209 :default\r\n");
-	if (job->job_flags & JOB_SCHEDULED)
+	if (job->job_flags & JOB_SCHEDULED) {
 		(void) ctl_printf(client, "208 :%s\r\n", cron_to_string(&job->job_schedule));
-	else
+		(void) ctl_printf(client, "213 :%s\r\n", cron_to_string_interval(&job->job_schedule));
+	} else
 		(void) ctl_printf(client, "208 :-\r\n");
 	(void) ctl_printf(client, "299 End of dump.\r\n");
 

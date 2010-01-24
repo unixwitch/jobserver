@@ -726,6 +726,7 @@ char	*vec[NARG];
 		case 206: (void) printf("start method: %s\n", rep->text); break;
 		case 207: (void) printf(" stop method: %s\n", rep->text); break;
 		case 208: (void) printf("    schedule: %s\n", rep->text); break;
+		case 213: (void) printf("              (in %s)\n", rep->text); break;
 		case 209: (void) printf("     project: %s\n", rep->text); break;
 		case 210: (void) printf("     on exit: %s\n", rep->text); break;
 		case 211: (void) printf("     on fail: %s\n", rep->text); break;

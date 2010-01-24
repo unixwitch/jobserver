@@ -54,6 +54,7 @@ typedef struct {
 } cron_t;
 
 char *cron_to_string(cron_t *);
+char *cron_to_string_interval(cron_t *);
 
 typedef struct {
 	char		jr_name[32];

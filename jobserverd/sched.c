@@ -736,19 +736,19 @@ char		 timestr[128];
 	free_job(job);
 }
 
-static time_t
-sjob_nextrun(sched)
-	cron_t	sched;
+time_t
+sched_nextrun(sched)
+	cron_t	*sched;
 {
 time_t		 now = time(NULL);
 struct tm	*tm = gmtime(&now);
 int		 hr, min, wday;
 int		 a1, a2;
 
-	a1 = sched.cron_arg1;
-	a2 = sched.cron_arg2;
+	a1 = sched->cron_arg1;
+	a2 = sched->cron_arg2;
 
-	switch (sched.cron_type) {
+	switch (sched->cron_type) {
 	case CRON_ABSOLUTE:
 		return a1;
 
@@ -828,7 +828,7 @@ sjob_t	*sjob;
 		return;
 	}
 
-	sjob->sjob_nextrun = sjob_nextrun(job->job_schedule);
+	sjob->sjob_nextrun = sched_nextrun(&job->job_schedule);
 
 	if ((sjob->sjob_timer = ev_add_once(sjob->sjob_nextrun - time(NULL),
 					sjob_run_scheduled, sjob)) == -1) {

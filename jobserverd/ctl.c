@@ -824,6 +824,7 @@ char		*arg, *endp = NULL;
 job_id_t	 id;
 job_t		*job = NULL;
 char const	*state, *rstate;
+char		 buf[64];
 
 	if ((arg = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
@@ -881,6 +882,34 @@ char const	*state, *rstate;
 	(void) ctl_printf(client, "205 :%s\r\n", rstate);
 	(void) ctl_printf(client, "206 :%s\r\n", job->job_start_method);
 	(void) ctl_printf(client, "207 :%s\r\n", job->job_stop_method);
+
+	buf[0] = 0;
+	if (job->job_exit_action & ST_EXIT_RESTART)
+		strlcat(buf, "restart", sizeof(buf));
+	else if (job->job_exit_action & ST_EXIT_DISABLE)
+		strlcat(buf, "disable", sizeof(buf));
+	if (job->job_exit_action & ST_EXIT_MAIL)
+		strlcat(buf, ",mail", sizeof(buf));
+	(void) ctl_printf(client, "210 :%s\r\n", buf);
+
+	buf[0] = 0;
+	if (job->job_fail_action & ST_EXIT_RESTART)
+		strlcat(buf, "restart", sizeof(buf));
+	else if (job->job_fail_action & ST_EXIT_DISABLE)
+		strlcat(buf, "disable", sizeof(buf));
+	if (job->job_fail_action & ST_EXIT_MAIL)
+		strlcat(buf, ",mail", sizeof(buf));
+	(void) ctl_printf(client, "211 :%s\r\n", buf);
+
+	buf[0] = 0;
+	if (job->job_crash_action & ST_EXIT_RESTART)
+		strlcat(buf, "restart", sizeof(buf));
+	else if (job->job_crash_action & ST_EXIT_DISABLE)
+		strlcat(buf, "disable", sizeof(buf));
+	if (job->job_crash_action & ST_EXIT_MAIL)
+		strlcat(buf, ",mail", sizeof(buf));
+	(void) ctl_printf(client, "212 :%s\r\n", buf);
+
 	if (job->job_project)
 		(void) ctl_printf(client, "209 :%s\r\n", job->job_project);
 	else
@@ -974,6 +1003,42 @@ job_t		*job = NULL;
 				}
 			} else {
 				(void) ctl_printf(client, "500 Invalid syntax.\r\n");
+				goto err;
+			}
+		} else if (!strcmp(key, "EXIT") || !strcmp(key, "CRASH") || !strcmp(key, "FAIL")) {
+		char	*v;
+		int	 action = 0;
+		int (*func)(job_t *, int);
+
+			for (v = strtok(value, ", "); v; v = strtok(NULL, ", ")) {
+				if (!strcmp(v, "mail"))
+					action |= ST_EXIT_MAIL;
+				else if (!strcmp(v, "disable"))
+					action |= ST_EXIT_DISABLE;
+				else if (!strcmp(v, "restart"))
+					action |= ST_EXIT_RESTART;
+				else {
+					(void) ctl_printf(client, "500 Invalid action \"%s\".\r\n", v);
+					goto err;
+				}
+			}
+
+			if ((action & (ST_EXIT_DISABLE | ST_EXIT_RESTART)) == 0) {
+				(void) ctl_printf(client, "500 Either restart or disable must be specified.\r\n");
+				goto err;
+			}
+
+			if (!strcmp(key, "EXIT"))
+				func = job_set_exit_action;
+			else if (!strcmp(key, "CRASH"))
+				func = job_set_crash_action;
+			else if (!strcmp(key, "FAIL"))
+				func = job_set_fail_action;
+			else
+				abort();
+
+			if (func(job, action) == -1) {
+				(void) ctl_printf(client, "500 Cannot set action.\r\n");
 				goto err;
 			}
 		} else {

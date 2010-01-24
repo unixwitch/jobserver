@@ -265,6 +265,7 @@ char		 ctevents[PATH_MAX];
 	if ((job = find_job(id)) == NULL)
 		goto err;
 
+	sjob->sjob_fatal = 0;
 	sjob->sjob_start_time = time(NULL);
 
 	/*
@@ -504,63 +505,55 @@ int		 i;
 			status = 0;
 		}
 
-		/*
-		 * If this was a signal exit, we already handled it.
-		 */
 		if (WIFEXITED(status) && pid == sjob->sjob_pid) {
+			/*
+			 * Normal exit - status 0 means 'exit', anything else
+			 * means 'fail'.
+			 */
 			if (WEXITSTATUS(status) == 0) {
-				logm(LOG_DEBUG, "job %ld: pid=%ld normal exit status 0",
+				logm(LOG_INFO, "job %ld: pid=%ld normal exit status 0",
 						(long) sjob->sjob_id, (long) pid);
 				sched_handle_exit(sjob);
 			} else {
-				logm(LOG_DEBUG, "job %ld: pid=%ld abnormal exit status %d",
+				logm(LOG_INFO, "job %ld: pid=%ld abnormal exit status %d",
 						(long) sjob->sjob_id, (long) pid, WEXITSTATUS(status));
-				sched_handle_exit(sjob);
+				sched_handle_fail(sjob);
 			}
+		} else if (WIFSIGNALED(status)) {
+			/* 
+			 * A process in the contract exited from a signal.  Certain
+			 * signals are considered crash events, others are simple
+			 * exits.
+			 */
+			sig = WTERMSIG(status);
+
+			switch (sig) {
+			case SIGILL:
+			case SIGTRAP:
+			case SIGABRT:
+			case SIGEMT:
+			case SIGFPE:
+			case SIGBUS:
+			case SIGSEGV:
+			case SIGSYS:
+				logm(LOG_INFO, "job %ld: pid=%ld crash on fatal signal %d",
+						(long) sjob->sjob_id, (long) pid, sig);
+				sched_handle_crash(sjob);
+				break;
+
+			default:
+				if (pid == sjob->sjob_pid) {
+					logm(LOG_INFO, "job %ld: pid=%ld fail on fatal signal %d",
+							(long) sjob->sjob_id, (long) pid, sig);
+					sched_handle_fail(sjob);
+				}
+				break;
+			}
+			break;
 		}
 		break;
 
 	case CT_PR_EV_SIGNAL:
-		/* 
-		 * A process in the contract exited from a signal.  Certain
-		 * signals are considered crash events, others are simple
-		 * exits.
-		 */
-		if (ct_pr_event_get_pid(ev, &pid) == -1) {
-			logm(LOG_WARNING, "job %ld: ct_pr_event_get_pid failed: %s",
-					(long) sjob->sjob_id, strerror(errno));
-			pid = 0;
-		}
-
-		if (ct_pr_event_get_signal(ev, &sig) == -1) {
-			logm(LOG_WARNING, "job %ld: ct_pr_event_get_signal failed: %s (assuming SIGTERM)",
-					(long) sjob->sjob_id, strerror(errno));
-			sig = SIGTERM;
-		}
-		
-		switch (sig) {
-		case SIGILL:
-		case SIGTRAP:
-		case SIGABRT:
-		case SIGEMT:
-		case SIGFPE:
-		case SIGBUS:
-		case SIGSEGV:
-		case SIGSYS:
-			logm(LOG_INFO, "job %ld: pid=%ld crash on fatal signal %d",
-					(long) sjob->sjob_id, (long) pid, sig);
-			sched_handle_crash(sjob);
-			break;
-
-		default:
-			if (pid == sjob->sjob_pid) {
-				logm(LOG_INFO, "job %ld: pid=%ld fail on fatal signal %d",
-						(long) sjob->sjob_id, (long) pid, sig);
-				sched_handle_fail(sjob);
-			}
-			break;
-		}
-		break;
 
 	case CT_PR_EV_FORK:
 		/* We don't care about these events. */
@@ -575,7 +568,6 @@ sched_handle_exit(sjob)
 	sjob_t	*sjob;
 {
 job_t	*job;
-
 	if (sjob->sjob_fatal)
 		return;
 	sjob->sjob_fatal = 1;

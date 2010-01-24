@@ -602,7 +602,7 @@ job_set_crash_action(job, flags)
 {
 int	 ret;
 
-	job->job_exit_action = flags;
+	job->job_crash_action = flags;
 	ret = job_update(job);
 
 	return ret;
@@ -615,7 +615,7 @@ job_set_fail_action(job, flags)
 {
 int	 ret;
 
-	job->job_exit_action = flags;
+	job->job_fail_action = flags;
 	ret = job_update(job);
 
 	return ret;

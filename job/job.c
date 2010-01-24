@@ -150,9 +150,11 @@ char const *u_clear =
 "\n"
 "         Clear maintenance state on a job.\n";
 char const *u_unschedule =
-"       job [-D] unsched[ule] <id>\n"
+"       job [-D] unsched[ule] [-s] <id>\n"
 "\n"
-"         Unschedule a previously scheduled job.\n";
+"         Unschedule a previously scheduled job.\n"
+"\n"
+"           -s     Stop the job as well as unscheduling it.\n";
 char const *u_limit =
 "       job [-D] limit [-r] <job> <control> [value]\n"
 "       job [-D] unlimit <job> <control>\n"
@@ -365,13 +367,30 @@ c_unschedule(argc, argv)
 	int	  argc;
 	char	**argv;
 {
-	if (argc != 2) {
+int	c, stop = 0;
+	while ((c = getopt(argc, argv, "s")) != -1) {
+		switch (c) {
+		case 's':
+			stop++;
+			break;
+
+		default:
+			(void) fprintf(stderr, "%s", u_unschedule);
+			return 1;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 1) {
 		fprintf(stderr, "unschedule: wrong number of arguments\n\n");
 		fprintf(stderr, "%s", u_unschedule);
 		return 1;
 	}
 
-	simple_command("USHD %s", argv[1]);
+	if (stop)
+		simple_command("STOP %s", argv[0]);
+	simple_command("USHD %s", argv[0]);
 }
 
 /*ARGSUSED*/

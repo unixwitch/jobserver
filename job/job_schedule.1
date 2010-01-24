@@ -9,7 +9,7 @@ job schedule, job unschedule \- schedule or unschedule a job
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] [\fB-s\fR] \fIid\fR
 .fi
 
 .nf
@@ -53,7 +53,18 @@ first (see \fBjob_disable\fR(1)).
 .SS "job unsched"
 .LP
 The second form of the command unschedules a currently scheduled job,
-returning it to the \fBdisabled\fR state.
+returning it to the \fBdisabled\fR state.  The job will not be stopped
+unless \fB-s\fR is specified.  The following option is supported:
+
+.ne 2
+.mk
+.na
+\fB-s\fR
+.ad
+.RS 13n
+.rt
+Cause the job to stop immediately.
+.RE
 
 .SS "job start"
 .LP

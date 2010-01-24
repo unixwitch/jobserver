@@ -747,11 +747,6 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (!(job->job_flags & JOB_SCHEDULED)) {
-		(void) ctl_printf(client, "500 Job is not scheduled.\r\n");
-		goto err;
-	}
-
 	if (sched_get_state(job->job_id) != SJOB_RUNNING) {
 		(void) ctl_printf(client, "500 Job is not running.\r\n");
 		goto err;

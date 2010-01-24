@@ -700,6 +700,8 @@ c_show (argc, argv)
 	char **argv;
 {
 reply_t	*rep;
+int	 first = 1;
+char	*vec[NARG];
 
 	if (argc != 2) {
 		fprintf(stderr, "show: wrong number of arguments\n\n");
@@ -738,7 +740,30 @@ reply_t	*rep;
 			break;
 	}
 
-	return 0;
+	(void) printf("      limits:");
+	put_server("LISR %s", argv[1]);
+	while (rep = read_line()) {
+		switch (rep->numeric) {
+		case 200:
+			split(rep->text, vec);
+			if (first)
+				(void) printf(" %s = %s\n", vec[0], vec[1]);
+			else
+				(void) printf("              %s = %s\n", vec[0], vec[1]);
+			first = 0;
+			break;
+
+		case 201:
+			return 0;
+
+		default:
+			(void) printf("%s\n", rep->text);
+			return 1;
+		}
+	}
+
+	(void) fprintf(stderr, "job: unexpected EOF\n");
+	return 1;
 }
 
 static int

@@ -571,10 +571,12 @@ static void
 sched_handle_exit(sjob)
 	sjob_t	*sjob;
 {
-job_t	*job;
-char	 msg[4096];
-char	 hostname[64];
+job_t		*job;
+char		 msg[4096];
+char		 hostname[64];
 struct passwd	*pwd;
+time_t		 now = time(NULL);
+char		 timestr[128];
 
 	if (gethostname(hostname, sizeof(hostname)) == -1)
 		strlcpy(hostname, "unknown", sizeof(hostname));
@@ -589,14 +591,17 @@ struct passwd	*pwd;
 		abort();
 
 	if ((job->job_exit_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&now));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
 			"Subject: Job %d (%s) exited\n"
+			"Date: %s"
 			"\n"
 			"Your job, %s (id %d), on the host \"%s\" has exited successfully.\n",
 			pwd->pw_name, 
 			(int) job->job_id, 
 			job->job_name,
+			timestr,
 			job->job_name,
 			(int) job->job_id,
 			hostname);
@@ -631,10 +636,12 @@ static void
 sched_handle_fail(sjob)
 	sjob_t	*sjob;
 {
-job_t	*job;
-char	 msg[4096];
-char	 hostname[64];
+job_t		*job;
+char		 msg[4096];
+char		 hostname[64];
 struct passwd	*pwd;
+time_t		 now = time(NULL);
+char		 timestr[128];
 
 	if (sjob->sjob_fatal)
 		return;
@@ -644,14 +651,17 @@ struct passwd	*pwd;
 		abort();
 
 	if ((job->job_fail_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&now));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
 			"Subject: Job %d (%s) failed\n"
+			"Date: %s"
 			"\n"
 			"Your job, %s (id %d), on the host \"%s\" has failed.\n",
 			pwd->pw_name, 
 			(int) job->job_id, 
 			job->job_name,
+			timestr,
 			job->job_name,
 			(int) job->job_id,
 			hostname);
@@ -682,20 +692,25 @@ job_t		*job;
 char		 msg[4096];
 char		 hostname[64];
 struct passwd	*pwd;
+time_t		 now = time(NULL);
+char		 timestr[128];
 
 	if (sjob->sjob_fatal)
 		return;
 	sjob->sjob_fatal = 1;
 
 	if ((job->job_crash_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&now));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
 			"Subject: Job %d (%s) failed\n"
+			"Date: %s"
 			"\n"
 			"Your job, %s (id %d), on the host \"%s\" has crashed.\n",
 			pwd->pw_name, 
 			(int) job->job_id, 
 			job->job_name,
+			timestr,
 			job->job_name,
 			(int) job->job_id,
 			hostname);

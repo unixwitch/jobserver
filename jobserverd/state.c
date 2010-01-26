@@ -512,8 +512,8 @@ err:
 }
 
 int
-delete_job(id)
-	job_id_t	id;
+delete_job(job)
+	job_t	*job;
 {
 DBT	 key;
 DB_TXN	*txn = NULL;
@@ -521,8 +521,8 @@ int	 err;
 
 	bzero(&key, sizeof(key));
 
-	key.data = &id;
-	key.size = sizeof(id);
+	key.data = &job->job_id;
+	key.size = sizeof(job->job_id);
 
 	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
 		logm(LOG_ERR, "delete_job: env txn_begin failed: %s",
@@ -543,7 +543,7 @@ int	 err;
 		goto err;
 	}
 
-	sched_job_deleted(id);
+	sched_job_deleted(job);
 	return 0;
 
 err:
@@ -562,7 +562,7 @@ int	 ret;
 	ret = job_update(job);
 
 	if (!(job->job_flags & JOB_MAINTENANCE))
-		sched_job_enabled(job->job_id);
+		sched_job_enabled(job);
 
 	return ret;
 }
@@ -576,7 +576,7 @@ int	 ret;
 	job->job_flags &= ~JOB_ENABLED;
 	ret = job_update(job);
 
-	sched_job_disabled(job->job_id);
+	sched_job_disabled(job);
 	return ret;
 }
 
@@ -877,12 +877,13 @@ do_start_job(job, udata)
 	if (job->job_flags & JOB_MAINTENANCE)
 		return 0;
 	if (job->job_flags & JOB_ENABLED) {
-		if (sched_start(job->job_id) == -1)
-			logm(LOG_ERR, "do_start_job: job %ld: sched_start failed",
-					(long) job->job_id);
-		return 0;
-	} else if (job->job_flags & JOB_SCHEDULED) {
-		sched_job_scheduled(job->job_id);
+		if (job->job_flags & JOB_SCHEDULED) {
+			sched_job_scheduled(job);
+		} else {
+			if (sched_start(job) == -1)
+				logm(LOG_ERR, "do_start_job: job %ld: sched_start failed",
+						(long) job->job_id);
+		}
 		return 0;
 	}
 
@@ -897,7 +898,7 @@ job_unschedule(job)
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_schedule: warning: job_update failed");
 
-	sched_job_unscheduled(job->job_id);
+	sched_job_unscheduled(job);
 
 	return 0;
 }
@@ -923,7 +924,7 @@ job_clear_maintenance(job)
 		logm(LOG_ERR, "job_clear_maintenance: warning: job_update failed");
 
 	if (job->job_flags & JOB_ENABLED)
-		sched_job_enabled(job->job_id);
+		sched_job_enabled(job);
 
 	return 0;
 }
@@ -1059,7 +1060,7 @@ char	 s[64];
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_schedule: warning: job_update failed");
 
-	sched_job_scheduled(job->job_id);
+	sched_job_scheduled(job);
 
 	return 0;
 

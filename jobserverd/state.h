@@ -99,7 +99,7 @@ job_t	*find_job(job_id_t);
 /*
  * Delete a job from the database.
  */
-int	 delete_job(job_id_t);
+int	 delete_job(job_t *);
 
 /*
  * Deallocate a job_t.  Does not remove the job from the database.

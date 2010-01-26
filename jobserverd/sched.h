@@ -51,19 +51,19 @@ typedef struct {
 	char const	*sjob_lasterr;
 } sjob_t;
 
-int sched_start(job_id_t id);
-int sched_stop(job_id_t id);
-sjob_state_t sched_get_state(job_id_t);
+int sched_start(job_t *);
+int sched_stop(job_t *);
+sjob_state_t sched_get_state(job_t *);
 
 /*
  * Call one of these functions when a job is enabled or disabled
  * to have the scheduler take the appropriate action.
  */
-void sched_job_enabled(job_id_t);
-void sched_job_disabled(job_id_t);
-void sched_job_deleted(job_id_t);
-void sched_job_scheduled(job_id_t);
-void sched_job_unscheduled(job_id_t);
+void sched_job_enabled(job_t *);
+void sched_job_disabled(job_t *);
+void sched_job_deleted(job_t *);
+void sched_job_scheduled(job_t *);
+void sched_job_unscheduled(job_t *);
 
 /*
  * Get the next runtime of a scheduled job.

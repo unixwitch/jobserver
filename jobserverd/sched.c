@@ -133,11 +133,11 @@ sjob_t	*nsj, *nj = NULL;
 }
 
 sjob_state_t
-sched_get_state(id)
-	job_id_t	id;
+sched_get_state(job)
+	job_t	*job;
 {
 sjob_t	*sjob;
-	if ((sjob = sjob_find(id)) == NULL)
+	if ((sjob = sjob_find(job->job_id)) == NULL)
 		return SJOB_UNKNOWN;
 
 	return sjob->sjob_state;
@@ -164,16 +164,12 @@ sjob_t	*sjob = udata;
 }
 
 int
-sched_stop(id)
-	job_id_t	id;
+sched_stop(job)
+	job_t	*job;
 {
 sjob_t		*sjob = NULL;
-job_t		*job = NULL;
 
-	if ((sjob = sjob_find(id)) == NULL)
-		goto err;
-
-	if ((job = find_job(id)) == NULL)
+	if ((sjob = sjob_find(job->job_id)) == NULL)
 		goto err;
 
 	/*
@@ -216,10 +212,9 @@ job_t		*job = NULL;
 	 */
 	sjob->sjob_timer = ev_add_once(5, sched_stop_timer_callback, sjob);
 
-	free_job(job);
 	return 0;
+
 err:
-	free_job(job);
 	return -1;
 }
 
@@ -250,17 +245,13 @@ ct_stathdl_t	 ctst;
 }
 
 int
-sched_start(id)
-	job_id_t	id;
+sched_start(job)
+	job_t	*job;
 {
 sjob_t		*sjob = NULL;
-job_t		*job = NULL;
 char		 ctevents[PATH_MAX];
 
-	if ((sjob = sjob_find(id)) == NULL)
-		goto err;
-
-	if ((job = find_job(id)) == NULL)
+	if ((sjob = sjob_find(job->job_id)) == NULL)
 		goto err;
 
 	sjob->sjob_fatal = 0;
@@ -309,11 +300,9 @@ char		 ctevents[PATH_MAX];
 	}
 
 	sjob->sjob_state = SJOB_RUNNING;
-	free_job(job);
 	return 0;
 
 err:
-	free_job(job);
 	free_sjob(sjob);
 	return -1;
 }
@@ -333,39 +322,47 @@ free_sjob(sjob)
 }
 
 void
-sched_job_enabled(id)
-	job_id_t	id;
+sched_job_enabled(job)
+	job_t	*job;
 {
 sjob_t	*sjob;
-	if ((sjob = sjob_find(id)) == NULL)
+	if ((sjob = sjob_find(job->job_id)) == NULL)
 		return;
 
-	if (sjob->sjob_state != SJOB_STOPPED)
-		return;
+	if (job->job_flags & JOB_SCHEDULED) {
+		sched_job_scheduled(job);
+	} else {
+		if (sjob->sjob_state != SJOB_STOPPED)
+			return;
 
-	if (sched_start(id) == -1)
-		logm(LOG_WARNING, "sched_job_enabled: sched_start failed");
+		if (sched_start(job) == -1)
+			logm(LOG_WARNING, "sched_job_enabled: sched_start failed");
+	}
 }
 
 void
-sched_job_disabled(id)
-	job_id_t	id;
+sched_job_disabled(job)
+	job_t	*job;
 {
 sjob_t	*sjob;
-	if ((sjob = sjob_find(id)) == NULL)
+	if ((sjob = sjob_find(job->job_id)) == NULL)
 		return;
 
-	if (sjob->sjob_state != SJOB_RUNNING)
-		return;
+	if ((job->job_flags & JOB_ENABLED) && (job->job_flags & JOB_SCHEDULED)) {
+		sched_job_unscheduled(job);
+	} else {
+		if (sjob->sjob_state != SJOB_RUNNING)
+			return;
 
-	if (sched_stop(id) == -1)
-		logm(LOG_WARNING, "sched_job_disabled: sched_stop(%ld) failed",
-				(long) id);
+		if (sched_stop(job) == -1)
+			logm(LOG_WARNING, "sched_job_disabled: sched_stop(%ld) failed",
+					(long) job->job_id);
+	}
 }
 
 void
-sched_job_deleted(id)
-	job_id_t	id;
+sched_job_deleted(job)
+	job_t	*job;
 {
 sjob_t	*sjob;
 int	 i;
@@ -373,7 +370,7 @@ int	 i;
 		if (sjobs[i].sjob_id == -1)
 			continue;
 
-		if (sjobs[i].sjob_id == id) {
+		if (sjobs[i].sjob_id == job->job_id) {
 			sjob = &sjobs[i];
 			break;
 		}
@@ -467,23 +464,23 @@ int		 i;
 			abort();
 
 		if (!(job->job_flags & JOB_MAINTENANCE)) {
-			if (job->job_flags & JOB_ENABLED) {
+			if (job->job_flags & JOB_SCHEDULED) {
+				if (job->job_schedule.cron_type != CRON_ABSOLUTE)
+					sched_job_scheduled(job);
+				else {
+					if (job_unschedule(job) == -1)
+						logm(LOG_ERR, "job %ld: cannot unschedule: %s",
+								(long) job->job_id, strerror(errno));
+				}
+			} else if (job->job_flags & JOB_ENABLED) {
 				if (sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
 					if (job_set_maintenance(job, "Restarting too quickly") == -1)
 						logm(LOG_WARNING, "job %ld: could not set maintenance mode",
 								(long) job->job_id);
 				} else {
-					if (sched_start(job->job_id) == -1)
+					if (sched_start(job) == -1)
 						logm(LOG_WARNING, "job %ld: restart failed",
 								(long) job->job_id);
-				}
-			} else if (job->job_flags & JOB_SCHEDULED) {
-				if (job->job_schedule.cron_type != CRON_ABSOLUTE)
-					sched_job_scheduled(job->job_id);
-				else {
-					if (job_unschedule(job) == -1)
-						logm(LOG_ERR, "job %ld: cannot unschedule: %s",
-								(long) job->job_id, strerror(errno));
 				}
 			}
 		}
@@ -607,7 +604,7 @@ char		 timestr[128];
 			hostname);
 	}
 
-	if ((job->job_flags & JOB_ENABLED) &&
+	if ((job->job_flags & JOB_ENABLED) && !(job->job_flags & JOB_SCHEDULED) &&
 	    sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
 		if (job_set_maintenance(job, "Restarting too quickly") == -1)
 			logm(LOG_WARNING, "job %ld: could not set maintenance",
@@ -620,8 +617,9 @@ char		 timestr[128];
 	if (job->job_exit_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_exit: job_disable failed");
-		if (job->job_exit_action & ST_EXIT_MAIL)
-			strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
+		else if (job->job_exit_action & ST_EXIT_MAIL)
+			strlcat(msg, "\nThe exit action for this job is 'disable', "
+					"so the job has been disabled.\n", sizeof(msg));
 	}
 
 	if (job->job_exit_action & ST_EXIT_MAIL) {
@@ -670,9 +668,9 @@ char		 timestr[128];
 	if (job->job_fail_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_fail: job_disabled failed");
-		else
-			if (job->job_fail_action & ST_EXIT_MAIL)
-				strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
+		else if (job->job_fail_action & ST_EXIT_MAIL)
+			strlcat(msg, "\nThe fail action for this job is 'disable', "
+					"so the job has been disabled.\n", sizeof(msg));
 	}
 
 	if (job->job_fail_action & ST_EXIT_MAIL) {
@@ -722,9 +720,9 @@ char		 timestr[128];
 	if (job->job_crash_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
 			logm(LOG_WARNING, "sched_handle_crash: job_disabled failed");
-		else
-			if (job->job_fail_action & ST_EXIT_MAIL)
-				strlcat(msg, "\nThe job has been disabled.\n", sizeof(msg));
+		else if (job->job_fail_action & ST_EXIT_MAIL)
+			strlcat(msg, "\nThe crash action for this job is 'disable', "
+					"so the job has been disabled.\n", sizeof(msg));
 	}
 
 	if (job->job_crash_action & ST_EXIT_MAIL) {
@@ -753,7 +751,9 @@ int		 a1, a2;
 		return a1;
 
 	case CRON_EVERY_MINUTE:
-		return now + 60;
+		tm->tm_sec = 0;
+		tm->tm_min++;
+		return mktime(tm);
 
 	case CRON_EVERY_HOUR:
 		if (a1 <= tm->tm_min)
@@ -807,26 +807,23 @@ job_t	*job;
 
 	sjob->sjob_nextrun = 0;
 
-	if (sched_start(sjob->sjob_id) == -1)
+	if (sched_start(job) == -1)
 		logm(LOG_WARNING, "sched_run_scheduled: sched_start failed");
 
 	free_job(job);
 }
 
 void
-sched_job_scheduled(id)
-	job_id_t	id;
+sched_job_scheduled(job)
+	job_t	*job;
 {
-job_t	*job;
 sjob_t	*sjob;
 
-	if ((job = find_job(id)) == NULL)
+	if (!(job->job_flags & JOB_ENABLED))
 		return;
 
-	if ((sjob = sjob_find(id)) == NULL) {
-		free_job(job);
+	if ((sjob = sjob_find(job->job_id)) == NULL)
 		return;
-	}
 
 	sjob->sjob_nextrun = sched_nextrun(&job->job_schedule);
 
@@ -835,17 +832,15 @@ sjob_t	*sjob;
 		logm(LOG_ERR, "sched_job_schedule: ev_add_once failed: %s",
 				strerror(errno));
 	}
-
-	free_job(job);
 }
 
 void
-sched_job_unscheduled(id)
-	job_id_t	id;
+sched_job_unscheduled(job)
+	job_t	*job;
 {
 sjob_t	*sjob;
 
-	if ((sjob = sjob_find(id)) == NULL)
+	if ((sjob = sjob_find(job->job_id)) == NULL)
 		return;
 
 	sjob->sjob_nextrun = 0;

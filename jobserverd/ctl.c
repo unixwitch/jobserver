@@ -529,12 +529,12 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (sched_get_state(job->job_id) != SJOB_STOPPED) {
+	if (sched_get_state(job) != SJOB_STOPPED) {
 		(void) ctl_printf(client, "505 Cannot delete a running job.\r\n");
 		goto err;
 	}
 
-	if (delete_job(id) != 0)
+	if (delete_job(job) != 0)
 		(void) ctl_printf(client, "502 Could not delete job.\r\n");
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");
@@ -571,16 +571,19 @@ char const	*state, *rstate;
 	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_VIEW))
 		return 0;
 
-	if (job->job_flags & JOB_SCHEDULED)
-		state = "scheduled";
-	else if (job->job_flags & JOB_MAINTENANCE)
+	if (job->job_flags & JOB_MAINTENANCE)
 		state = "maintenance";
-	else if (job->job_flags & JOB_ENABLED)
+	else if (job->job_flags & JOB_SCHEDULED) {
+		if (job->job_flags & JOB_ENABLED)
+			state = "scheduled/enabled";
+		else
+			state = "scheduled/disabled";
+	} else if (job->job_flags & JOB_ENABLED)
 		state = "enabled";
 	else
 		state = "disabled";
 
-	switch (sched_get_state(job->job_id)) {
+	switch (sched_get_state(job)) {
 	case SJOB_RUNNING:
 		rstate = "running";
 		break;
@@ -745,12 +748,12 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (sched_get_state(job->job_id) != SJOB_RUNNING) {
+	if (sched_get_state(job) != SJOB_RUNNING) {
 		(void) ctl_printf(client, "500 Job is not running.\r\n");
 		goto err;
 	}
 
-	if (sched_stop(job->job_id) == -1)
+	if (sched_stop(job) == -1)
 		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");
@@ -786,16 +789,6 @@ job_t		*job = NULL;
 
 	if (!client->cc_admin && !job_access(job, client->cc_uid, JOB_STARTSTOP)) {
 		(void) ctl_printf(client, "500 Permission denied.\r\n");
-		goto err;
-	}
-
-	if (job->job_flags & JOB_ENABLED) {
-		(void) ctl_printf(client, "500 Cannot schedule an enabled job.\r\n");
-		goto err;
-	}
-
-	if (job->job_flags & JOB_MAINTENANCE) {
-		(void) ctl_printf(client, "500 Cannot schedule a job in maintenance state.\r\n");
 		goto err;
 	}
 
@@ -844,16 +837,19 @@ struct passwd	*pwd;
 
 	(void) ctl_printf(client, "200 Job status follows.\r\n");
 
-	if (job->job_flags & JOB_SCHEDULED)
-		state = "scheduled";
-	else if (job->job_flags & JOB_MAINTENANCE)
+	if (job->job_flags & JOB_MAINTENANCE)
 		state = "maintenance";
-	else if (job->job_flags & JOB_ENABLED)
+	else if (job->job_flags & JOB_SCHEDULED) {
+		if (job->job_flags & JOB_ENABLED)
+			state = "scheduled/enabled";
+		else
+			state = "scheduled/disabled";
+	} else if (job->job_flags & JOB_ENABLED)
 		state = "enabled";
 	else
 		state = "disabled";
 
-	switch (sched_get_state(job->job_id)) {
+	switch (sched_get_state(job)) {
 	case SJOB_RUNNING:
 		rstate = "running";
 		break;
@@ -914,7 +910,8 @@ struct passwd	*pwd;
 		(void) ctl_printf(client, "209 :default\r\n");
 	if (job->job_flags & JOB_SCHEDULED) {
 		(void) ctl_printf(client, "208 :%s\r\n", cron_to_string(&job->job_schedule));
-		(void) ctl_printf(client, "213 :%s\r\n", cron_to_string_interval(&job->job_schedule));
+		if (job->job_flags & JOB_ENABLED)
+			(void) ctl_printf(client, "213 :%s\r\n", cron_to_string_interval(&job->job_schedule));
 	} else
 		(void) ctl_printf(client, "208 :-\r\n");
 	(void) ctl_printf(client, "299 End of dump.\r\n");
@@ -984,12 +981,6 @@ job_t		*job = NULL;
 				goto err;
 			}
 		} else if (!strcmp(key, "ENABLED")) {
-			if (job->job_flags & JOB_SCHEDULED) {
-				(void) ctl_printf(client, "500 Cannot %s a scheduled job.\r\n",
-						(strcmp(value, "1") ? "disable" : "enable"));
-				goto err;
-			}
-
 			if (!strcmp(value, "1")) {
 				if (job_enable(job) == -1) {
 					(void) ctl_printf(client, "500 Could not enable job.\r\n");
@@ -1351,7 +1342,7 @@ job_t		*job = NULL;
 		goto err;
 	}
 
-	if (sched_start(job->job_id) == -1)
+	if (sched_start(job) == -1)
 		(void) ctl_printf(client, "500 Could not start job.\r\n");
 	else
 		(void) ctl_printf(client, "200 OK.\r\n");

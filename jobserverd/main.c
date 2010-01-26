@@ -145,6 +145,8 @@ struct rlimit	nofile;
 			continue;
 		}
 
+		current_time = time(NULL);
+
 		switch (ev.portev_source) {
 		case PORT_SOURCE_FD:
 			fd_handle_event(&ev);

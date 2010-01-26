@@ -1004,16 +1004,16 @@ char	 s[64];
 	           sscanf(sched, "in %d minute", &i) == 1) {
 		if (!strcmp(s, "minutes") || !strcmp(s, "minute")) {
 			cron.cron_type = CRON_ABSOLUTE;
-			cron.cron_arg1 = time(NULL) + (i * 60);
+			cron.cron_arg1 = current_time + (i * 60);
 		} else if (!strcmp(s, "hours") || !strcmp(s, "hour")) {
 			cron.cron_type = CRON_ABSOLUTE;
-			cron.cron_arg1 = time(NULL) + (i * 60 * 60);
+			cron.cron_arg1 = current_time + (i * 60 * 60);
 		} else if (!strcmp(s, "days") || !strcmp(s, "day")) {
 			cron.cron_type = CRON_ABSOLUTE;
-			cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24);
+			cron.cron_arg1 = current_time + (i * 60 * 60 * 24);
 		} else if (!strcmp(s, "weeks") || !strcmp(s, "week")) {
 			cron.cron_type = CRON_ABSOLUTE;
-			cron.cron_arg1 = time(NULL) + (i * 60 * 60 * 24 * 7);
+			cron.cron_arg1 = current_time + (i * 60 * 60 * 24 * 7);
 		} else {
 			errno = EINVAL;
 			goto err;
@@ -1029,24 +1029,23 @@ char	 s[64];
 		cron.cron_type = CRON_ABSOLUTE;
 		cron.cron_arg1 = mktime(&tm);
 
-		if (cron.cron_arg1 < time(NULL)) {
+		if (cron.cron_arg1 < current_time) {
 			errno = EINVAL;
 			goto err;
 		}
 	} else if (sscanf(sched, "at %d:%d", &h, &mi) == 2) {
-	time_t		 now = time(NULL);
-	struct tm	*tm = gmtime(&now);
+	struct tm	*tm = gmtime(&current_time);
 		tm->tm_hour = h;
 		tm->tm_min = mi;
 		cron.cron_type = CRON_ABSOLUTE;
 		cron.cron_arg1 = mktime(tm);
 
-		if (cron.cron_arg1 < time(NULL)) {
+		if (cron.cron_arg1 < current_time) {
 			tm->tm_mday++;
 			cron.cron_arg1 = mktime(tm);
 		}
 
-		if (cron.cron_arg1 < time(NULL)) {
+		if (cron.cron_arg1 < current_time) {
 			errno = EINVAL;
 			goto err;
 		}
@@ -1132,7 +1131,7 @@ char *
 cron_to_string_interval(cron)
 	cron_t	*cron;
 {
-time_t		when = sched_nextrun(cron) - time(NULL);
+time_t		when = sched_nextrun(cron) - current_time;
 static char	buf[128];
 size_t		i = 0;
 

@@ -255,7 +255,7 @@ char		 ctevents[PATH_MAX];
 		goto err;
 
 	sjob->sjob_fatal = 0;
-	sjob->sjob_start_time = time(NULL);
+	sjob->sjob_start_time = current_time;
 
 	/*
 	 * Start the job.
@@ -473,7 +473,7 @@ int		 i;
 								(long) job->job_id, strerror(errno));
 				}
 			} else if (job->job_flags & JOB_ENABLED) {
-				if (sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
+				if (sjob->sjob_start_time + SCHED_MIN_RUNTIME > current_time) {
 					if (job_set_maintenance(job, "Restarting too quickly") == -1)
 						logm(LOG_WARNING, "job %ld: could not set maintenance mode",
 								(long) job->job_id);
@@ -572,7 +572,6 @@ job_t		*job;
 char		 msg[4096];
 char		 hostname[64];
 struct passwd	*pwd;
-time_t		 now = time(NULL);
 char		 timestr[128];
 
 	if (gethostname(hostname, sizeof(hostname)) == -1)
@@ -588,7 +587,7 @@ char		 timestr[128];
 		abort();
 
 	if ((job->job_exit_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
-		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&now));
+		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
 			"Subject: Job %d (%s) exited\n"
@@ -605,7 +604,7 @@ char		 timestr[128];
 	}
 
 	if ((job->job_flags & JOB_ENABLED) && !(job->job_flags & JOB_SCHEDULED) &&
-	    sjob->sjob_start_time + SCHED_MIN_RUNTIME > time(NULL)) {
+	    sjob->sjob_start_time + SCHED_MIN_RUNTIME > current_time) {
 		if (job_set_maintenance(job, "Restarting too quickly") == -1)
 			logm(LOG_WARNING, "job %ld: could not set maintenance",
 					(long) job->job_id);
@@ -638,7 +637,6 @@ job_t		*job;
 char		 msg[4096];
 char		 hostname[64];
 struct passwd	*pwd;
-time_t		 now = time(NULL);
 char		 timestr[128];
 
 	if (sjob->sjob_fatal)
@@ -649,7 +647,7 @@ char		 timestr[128];
 		abort();
 
 	if ((job->job_fail_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
-		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&now));
+		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
 			"Subject: Job %d (%s) failed\n"
@@ -690,7 +688,6 @@ job_t		*job;
 char		 msg[4096];
 char		 hostname[64];
 struct passwd	*pwd;
-time_t		 now = time(NULL);
 char		 timestr[128];
 
 	if (sjob->sjob_fatal)
@@ -698,7 +695,7 @@ char		 timestr[128];
 	sjob->sjob_fatal = 1;
 
 	if ((job->job_crash_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
-		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&now));
+		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
 			"Subject: Job %d (%s) failed\n"
@@ -738,7 +735,6 @@ time_t
 sched_nextrun(sched)
 	cron_t	*sched;
 {
-time_t		 now = time(NULL);
 struct tm	*tm = gmtime(&now);
 int		 hr, min, wday;
 int		 a1, a2;
@@ -827,7 +823,7 @@ sjob_t	*sjob;
 
 	sjob->sjob_nextrun = sched_nextrun(&job->job_schedule);
 
-	if ((sjob->sjob_timer = ev_add_once(sjob->sjob_nextrun - time(NULL),
+	if ((sjob->sjob_timer = ev_add_once(sjob->sjob_nextrun - current_time,
 					sjob_run_scheduled, sjob)) == -1) {
 		logm(LOG_ERR, "sched_job_schedule: ev_add_once failed: %s",
 				strerror(errno));

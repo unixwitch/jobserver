@@ -88,7 +88,7 @@ event_t	*ev;
 	ev->ev_udata = udata;
 	ev->ev_repeat = 1;
 	ev->ev_freq = when;
-	ev->ev_abstime = time(NULL) + when;
+	ev->ev_abstime = current_time + when;
 
 	ev_recalc();
 	/*LINTED*/
@@ -110,7 +110,7 @@ event_t	*ev;
 	ev->ev_udata = udata;
 	ev->ev_repeat = 0;
 	ev->ev_freq = when;
-	ev->ev_abstime = time(NULL) + when;
+	ev->ev_abstime = current_time + when;
 
 	ev_recalc();
 	/*LINTED*/

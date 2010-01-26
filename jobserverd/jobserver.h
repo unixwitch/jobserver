@@ -37,4 +37,9 @@ int asprintf(char **s, char const *fmt, ...);
 
 #define LOGWRITER PREFIX "/lib/logwriter"
 
+/*
+ * What the time was at the top of the event loop.
+ */
+extern time_t current_time;
+
 #endif	/* JOBSERVER_H */

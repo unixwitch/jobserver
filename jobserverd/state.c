@@ -329,13 +329,22 @@ int		 err;
 
 	return 0;
 }
+
 job_t *
-create_job(user, arg)
-	uid_t		 user;
-	char const	*arg;
+create_job(user, name)
+	char const	*user, *name;
 {
 job_t		*job = NULL;
-char const	*name;
+char		*fmri = NULL;
+
+	if (asprintf(&fmri, "job:/%s/%s", user, name) == -1) {
+		logm(LOG_ERR, "create_job: out of memory");
+		goto err;
+	}
+
+	if ((job = find_job_fmri(fmri)) != NULL) {
+		goto err;
+	}
 
 	if ((job = calloc(1, sizeof *job)) == NULL) {
 		logm(LOG_ERR, "create_job: out of memory");
@@ -347,19 +356,17 @@ char const	*name;
 		goto err;
 	}
 
-	if ((name = strrchr(arg, '/')) == NULL)
-		name = arg;
-	else
-		name++;
+	job->job_fmri = fmri;
+	fmri = NULL;
 
-	if ((job->job_name = strdup(name)) == NULL
-	    || (job->job_start_method = strdup(arg)) == NULL
-	    || (job->job_stop_method = strdup("")) == NULL) {
+	if ((job->job_username = strdup(user)) == NULL ||
+	    (job->job_start_method = strdup("")) == NULL ||
+	    (job->job_stop_method = strdup("")) == NULL) {
 		logm(LOG_ERR, "create_job: out of memory");
 		goto err;
 	}
 		
-	job->job_user = user;
+
 	job->job_fail_action = ST_EXIT_DISABLE | ST_EXIT_MAIL;
 	job->job_exit_action = ST_EXIT_DISABLE | ST_EXIT_MAIL;
 	job->job_crash_action = ST_EXIT_DISABLE | ST_EXIT_MAIL;
@@ -370,6 +377,7 @@ char const	*name;
 	return job;
 
 err:
+	free(fmri);
 	free_job(job);
 	return NULL;
 }
@@ -381,8 +389,8 @@ unserialise_job(job, buf, sz)
 	char	 *buf;
 {
 nvlist_t	*nvl = NULL;
-int32_t		 ct, ca1, ca2, uid;
-char		*start = NULL, *stop = NULL, *name = NULL, *proj = NULL;
+int32_t		 ct, ca1, ca2;
+char		*start = NULL, *stop = NULL, *proj = NULL, *fmri = NULL, *username;
 uchar_t		*rctls;
 uint_t		 nrctls;
 
@@ -398,8 +406,6 @@ uint_t		 nrctls;
 	}
 
 	if (	nvlist_lookup_int32(nvl, "id", &(*job)->job_id) ||
-		nvlist_lookup_int32(nvl, "user", &uid) ||
-		nvlist_lookup_string(nvl, "name", &name) ||
 		nvlist_lookup_string(nvl, "start", &start) ||
 		nvlist_lookup_string(nvl, "stop", &stop) ||
 		nvlist_lookup_uint32(nvl, "flags", &(*job)->job_flags) ||
@@ -410,8 +416,45 @@ uint_t		 nrctls;
 		nvlist_lookup_int32(nvl, "cron_arg1", &ca1) ||
 		nvlist_lookup_int32(nvl, "cron_arg2", &ca2)) {
 
-		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
+		logm(LOG_ERR, "unserialise_job: cannot unserialise: %s", strerror(errno));
 		goto err;
+	}
+
+	/*
+	 * Pre-FMRI jobs have a name and uid instead of an FMRI.  Check for
+	 * this and convert them to new-style jobs.
+	 */
+	if (nvlist_lookup_string(nvl, "username", &username) == 0 &&
+	    nvlist_lookup_string(nvl, "fmri", &fmri) == 0) {
+		if (((*job)->job_fmri = strdup(fmri)) == NULL ||
+		    ((*job)->job_username = strdup(username)) == NULL) {
+			logm(LOG_ERR, "unserialise_job: out of memory");
+			goto err;
+		}
+	} else {
+	struct passwd	*pwd;
+	int32_t		 uid;
+	char		*name;
+		if (nvlist_lookup_string(nvl, "name", &name) ||
+		    nvlist_lookup_int32(nvl, "user", &uid)) {
+			logm(LOG_ERR, "unserialise_job: found neither fmri nor name/uid");
+			goto err;
+		}
+
+		if ((pwd = getpwuid(uid)) == NULL) {
+			logm(LOG_ERR, "unserialise_job: couldn't find user %d", (int) uid);
+			goto err;
+		}
+
+		if (asprintf(&(*job)->job_fmri, "job:/%s/%s", pwd->pw_name, name) == -1) {
+			logm(LOG_ERR, "unserialise_job: out of memory");
+			goto err;
+		}
+
+		if (((*job)->job_username = strdup(pwd->pw_name)) == NULL) {
+			logm(LOG_ERR, "unserialise_job: out of memory");
+			goto err;
+		}
 	}
 
 	if (nvlist_lookup_byte_array(nvl, "rctls", &rctls, &nrctls) == 0) {
@@ -435,16 +478,13 @@ uint_t		 nrctls;
 		}
 	}
 
-	(*job)->job_user = uid;
 	(*job)->job_schedule.cron_type = ct;
 	(*job)->job_schedule.cron_arg1 = ca1;
 	(*job)->job_schedule.cron_arg2 = ca2;
 
-	if (	((*job)->job_name = strdup(name)) == NULL ||
-		((*job)->job_start_method = strdup(start)) == NULL ||
-		((*job)->job_stop_method = strdup(stop)) == NULL) {
-
-		logm(LOG_ERR, "job_update: out of memory");
+	if (((*job)->job_start_method = strdup(start)) == NULL ||
+	    ((*job)->job_stop_method = strdup(stop)) == NULL) {
+		logm(LOG_ERR, "unserialise_job: out of memory");
 		goto err;
 	}
 
@@ -455,7 +495,6 @@ err:
 	if (nvl)
 		nvlist_free(nvl);
 
-	free(proj);
 	free_job(*job);
 	return -1;
 }
@@ -509,6 +548,93 @@ err:
 		(void) txn->abort(txn);
 	free_job(job);
 	return NULL;
+}
+
+struct find_fmri_data {
+	char const	*fmri;
+	int		 nfound;
+	job_id_t	 id;
+};
+
+static int
+find_job_fmri_callback(job, udata)
+	job_t	*job;
+	void	*udata;
+{
+struct find_fmri_data	*data = udata;
+char const		*p, *q;
+
+	/*
+	 * Check for an exact match.
+	 */
+	if (!strcmp(data->fmri, job->job_fmri)) {
+		data->id = job->job_id;
+		data->nfound++;
+		return 0;
+	}
+
+	/*
+	 * Sanity: if the job starts with job:/ and wasn't an exact match,
+	 * then it can't exist.
+	 */
+	if (!strncmp(data->fmri, "job:/", 5))
+		return 0;
+
+	/*
+	 * If the spec is longer than the FMRI, it can't possibly match.
+	 * Subtract 4 because the partial FMRI can't match the "job:".
+	 */
+	if (strlen(data->fmri) > strlen(job->job_fmri) - 4)
+		return 0;
+
+	/*
+	 * Start at the end of the string, and match backwards.  Every time
+	 * we see a / in one string, it must match a / in the other.
+	 */
+	p = data->fmri + strlen(data->fmri) - 1;
+	q = job->job_fmri + strlen(job->job_fmri) - 1;
+	for (; p >= data->fmri && q >= job->job_fmri; --p, --q) {
+		if (*p != *q)
+			return 0;
+
+		if (*p == '/' && *q != '/')
+			return 0;
+
+		if (*q == '/' && *p != '/')
+			return 0;
+	}
+
+	/*
+	 * Ensure the last part matched is a full name, which means there
+	 * must be a / before it.
+	 */
+	if (*q != '/')
+		return 0;
+
+	/*
+	 * Match!
+	 */
+	data->id = job->job_id;
+	data->nfound++;
+
+	return 0;
+}
+
+job_t *
+find_job_fmri(fmri)
+	char const	*fmri;
+{
+struct find_fmri_data	data;
+	bzero(&data, sizeof(data));
+	data.fmri = fmri;
+
+	job_enumerate(find_job_fmri_callback, &data);
+
+	if (data.nfound != 1) {
+		return NULL;
+	}
+
+	return find_job(data.id);
 }
 
 int
@@ -656,18 +782,24 @@ int	 ret;
 }
 
 int
-job_set_name(job, name)
+job_set_fmri(job, fmri)
 	job_t		*job;
-	char const	*name;
+	char const	*fmri;
 {
 char	*news;
 int	 ret;
+job_t	*ejob;
 
-	if ((news = strdup(name)) == NULL)
+	if ((ejob = find_job_fmri(fmri)) != NULL) {
+		free_job(ejob);
+		return -1;
+	}
+
+	if ((news = strdup(fmri)) == NULL)
 		return -1;
 
-	free(job->job_name);
-	job->job_name = news;
+	free(job->job_fmri);
+	job->job_fmri = news;
 
 	ret = job_update(job);
 	return ret;
@@ -686,8 +818,6 @@ DB_TXN		*txn;
 char		*xbuf = NULL;
 int		 err;
 nvlist_t	*nvl = NULL;
-/*LINTED*/
-int32_t		 user = job->job_user;
 
 	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0)) {
 		logm(LOG_ERR, "job_update: nvlist_alloc failed: %s",
@@ -696,8 +826,8 @@ int32_t		 user = job->job_user;
 	}
 
 	if (	nvlist_add_int32(nvl, "id", job->job_id) != 0 ||
-		nvlist_add_int32(nvl, "user", user) != 0 ||
-		nvlist_add_string(nvl, "name", job->job_name) != 0 ||
+		nvlist_add_string(nvl, "username", job->job_username) != 0 ||
+		nvlist_add_string(nvl, "fmri", job->job_fmri) != 0 ||
 		nvlist_add_string(nvl, "start", job->job_start_method) != 0 ||
 		nvlist_add_string(nvl, "stop", job->job_stop_method) != 0 ||
 		nvlist_add_uint32(nvl, "flags", job->job_flags) != 0 ||
@@ -795,12 +925,12 @@ job_enumerate(cb, udata)
 	job_enumerate_callback	 cb;
 	void			*udata;
 {
-	return job_enumerate_user(-1, cb, udata);
+	return job_enumerate_user(NULL, cb, udata);
 }
 
 int
-job_enumerate_user(uid, cb, udata)
-	uid_t			 uid;
+job_enumerate_user(username, cb, udata)
+	char const *		 username;
 	job_enumerate_callback	 cb;
 	void			*udata;
 {
@@ -834,7 +964,7 @@ job_t	*job = NULL;
 		if (unserialise_job(&job, data.data, data.size) == -1)
 			continue;
 
-		if (uid != -1 && job->job_user != uid) {
+		if (username && strcmp(job->job_username, username)) {
 			free_job(job);
 			continue;
 		}
@@ -1427,15 +1557,11 @@ char	*np = NULL;
 
 	if (proj && *proj && strcmp(proj, "default")) {
 	char		 nssbuf[PROJECT_BUFSZ];
-	struct passwd	*pwd;
 
 		/*
 		 * Make sure the user is actually in the project.
 		 */
-		if ((pwd = getpwuid(job->job_user)) == NULL)
-			goto err;
-
-		if (!inproj(pwd->pw_name, proj, nssbuf, sizeof(nssbuf)))
+		if (!inproj(job->job_username, proj, nssbuf, sizeof(nssbuf)))
 			goto err;
 
 		if ((np = strdup(proj)) == NULL) {
@@ -1473,11 +1599,40 @@ _njobs_for_user_callback(job, udata)
 }
 
 int
-njobs_for_user(user)
-	uid_t	user;
+njobs_for_user(username)
+	char const	*username;
 {
 int	n = 0;
-	if (job_enumerate_user(user, _njobs_for_user_callback, &n) == -1)
+	if (job_enumerate_user(username, _njobs_for_user_callback, &n) == -1)
 		return -1;
 	return n;
+}
+
+int
+valid_fmri(fmri)
+	char const	*fmri;
+{
+char const	*p;
+
+	if (strncmp(fmri, "job:/", 5))
+		return 0;
+
+	fmri += 5;
+	for (p = fmri; *p; ++p) {
+		if (*p == '/') {
+			if (p == fmri)
+				return 0;
+
+			if (*(p + 1) == '/')
+				return 0;
+		}
+
+		if (!isalnum(*p) && !index("-_/", *p))
+			return 0;
+	}
+
+	if (*(p - 1) == '/')
+		return 0;
+
+	return 1;
 }

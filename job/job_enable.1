@@ -1,14 +1,14 @@
-.TH job_enable 1 "20 Jan 2010" "Jobserver" "User Commands"
+.TH job_enable 1 "26 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job enable, job disable \- enable and disable jobs
 .SH SYNOPSIS
 .LP
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIfmri\fR
 .fi
 
 .SH DESCRIPTION
@@ -23,13 +23,13 @@ The \fBjob enable\fR command is not used to schedule recurring jobs.  Use
 
 .SH USAGE
 .LP
-.SS "\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIid\fR"
+.SS "\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIfmri\fR"
 
-Requests the jobserver to enable the job \fIid\fR.
+Requests the jobserver to enable the job \fIfmri\fR.
 
 .LP
-.SS "\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIid\fR"
-Requests the jobserver to disable the job \fIid\fR.
+.SS "\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIfmri\fR"
+Requests the jobserver to disable the job \fIfmri\fR.
 
 .SH SEE ALSO
 \fBjob\fR(1), \fBjob_schedure\fR(1)

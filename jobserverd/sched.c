@@ -618,35 +618,32 @@ sched_handle_exit(sjob)
 job_t		*job;
 char		 msg[4096];
 char		 hostname[64];
-struct passwd	*pwd;
 char		 timestr[128];
+
+	if (sjob->sjob_fatal)
+		return;
+	sjob->sjob_fatal = 1;
 
 	if (gethostname(hostname, sizeof(hostname)) == -1)
 		strlcpy(hostname, "unknown", sizeof(hostname));
 	else
 		hostname[sizeof(hostname) - 1] = 0;
 
-	if (sjob->sjob_fatal)
-		return;
-	sjob->sjob_fatal = 1;
-
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
-	if ((job->job_exit_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+	if (job->job_exit_action & ST_EXIT_MAIL) {
 		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
-			"Subject: Job %d (%s) exited\n"
+			"Subject: Job \"%s\" exited\n"
 			"Date: %s"
 			"\n"
-			"Your job, %s (id %d), on the host \"%s\" has exited successfully.\n",
-			pwd->pw_name, 
-			(int) job->job_id, 
-			job->job_name,
+			"Your job \"%s\" on the host \"%s\" has exited successfully.\n",
+			job->job_username,
+			job->job_fmri,
 			timestr,
-			job->job_name,
-			(int) job->job_id,
+			job->job_fmri,
 			hostname);
 	}
 
@@ -670,7 +667,7 @@ char		 timestr[128];
 
 	if (job->job_exit_action & ST_EXIT_MAIL) {
 		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
-		if (send_mail(pwd->pw_name, msg) == -1)
+		if (send_mail(job->job_username, msg) == -1)
 			logm(LOG_ERR, "sched_handle_fail: cannot send mail: %s", strerror(errno));
 	}
 	free_job(job);
@@ -683,30 +680,32 @@ sched_handle_fail(sjob)
 job_t		*job;
 char		 msg[4096];
 char		 hostname[64];
-struct passwd	*pwd;
 char		 timestr[128];
 
 	if (sjob->sjob_fatal)
 		return;
 	sjob->sjob_fatal = 1;
 
+	if (gethostname(hostname, sizeof(hostname)) == -1)
+		strlcpy(hostname, "unknown", sizeof(hostname));
+	else
+		hostname[sizeof(hostname) - 1] = 0;
+
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
-	if ((job->job_fail_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+	if (job->job_fail_action & ST_EXIT_MAIL) {
 		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
-			"Subject: Job %d (%s) failed\n"
+			"Subject: Job \"%s\" failed\n"
 			"Date: %s"
 			"\n"
-			"Your job, %s (id %d), on the host \"%s\" has failed.\n",
-			pwd->pw_name, 
-			(int) job->job_id, 
-			job->job_name,
+			"Your job \"%s\" on the host \"%s\" has failed.\n",
+			job->job_username,
+			job->job_fmri,
 			timestr,
-			job->job_name,
-			(int) job->job_id,
+			job->job_fmri,
 			hostname);
 	}
 
@@ -720,7 +719,7 @@ char		 timestr[128];
 
 	if (job->job_fail_action & ST_EXIT_MAIL) {
 		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
-		if (send_mail(pwd->pw_name, msg) == -1)
+		if (send_mail(job->job_username, msg) == -1)
 			logm(LOG_ERR, "sched_handle_fail: cannot send mail: %s", strerror(errno));
 	}
 	
@@ -734,30 +733,32 @@ sched_handle_crash(sjob)
 job_t		*job;
 char		 msg[4096];
 char		 hostname[64];
-struct passwd	*pwd;
 char		 timestr[128];
 
 	if (sjob->sjob_fatal)
 		return;
 	sjob->sjob_fatal = 1;
 
+	if (gethostname(hostname, sizeof(hostname)) == -1)
+		strlcpy(hostname, "unknown", sizeof(hostname));
+	else
+		hostname[sizeof(hostname) - 1] = 0;
+
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
-	if ((job->job_crash_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
+	if (job->job_crash_action & ST_EXIT_MAIL) {
 		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		snprintf(msg, sizeof(msg),
 			"To: %s\n"
-			"Subject: Job %d (%s) failed\n"
+			"Subject: Job \"%s\" crashed\n"
 			"Date: %s"
 			"\n"
-			"Your job, %s (id %d), on the host \"%s\" has crashed.\n",
-			pwd->pw_name, 
-			(int) job->job_id, 
-			job->job_name,
+			"Your job \"%s\" on the host \"%s\" has crashed.\n",
+			job->job_username,
+			job->job_fmri,
 			timestr,
-			job->job_name,
-			(int) job->job_id,
+			job->job_fmri,
 			hostname);
 	}
 
@@ -774,7 +775,7 @@ char		 timestr[128];
 
 	if (job->job_crash_action & ST_EXIT_MAIL) {
 		strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
-		if (send_mail(pwd->pw_name, msg) == -1)
+		if (send_mail(job->job_username, msg) == -1)
 			logm(LOG_ERR, "sched_handle_crash: cannot send mail: %s", strerror(errno));
 	}
 
@@ -895,16 +896,16 @@ sjob_t	*sjob;
 }
 
 int
-job_access(job, user, access)
-	job_t	*job;
-	uid_t	 user;
-	int	 access;
+job_access(job, username, access)
+	job_t		*job;
+	char const	*username;
+	int		 access;
 {
 	/*
 	 * Currently, we just allow users access to their own jobs and disallow
 	 * access to all other users.
 	 */
-	if (job->job_user == user)
+	if (!strcmp(job->job_username, username))
 		return 1;
 
 	/* Should support ACLs here... */

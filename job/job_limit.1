@@ -1,15 +1,15 @@
 '\" te
-.TH job_limit 1 "20 Jan 2010" "Jobserver" "User Commands"
+.TH job_limit 1 "26 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job limit, job unlimit \- configure job resource limits
 .SH SYNOPSIS
 .LP
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBlimit\fR [\fB-r\fR] \fIid\fR \fIlimit\fR [\fIvalue\fI]
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBlimit\fR [\fB-r\fR] \fIfmri\fR \fIlimit\fR [\fIvalue\fI]
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunlimit\fR \fIid\fR \fIlimit\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunlimit\fR \fIfmri\fR \fIlimit\fR
 .fi
 
 .SH DESCRIPTION
@@ -50,14 +50,14 @@ T}
 
 .SH USAGE
 
-.SS "job limit \fIid\fR \fIlimit\fR \fIvalue\fR"
+.SS "job limit \fIfmri\fR \fIlimit\fR \fIvalue\fR"
 .LP
 Use this command to apply a limit to a process.  \fIlimit\fR should be
 a valid resource limit, and \fIvalue\fR is the value to limit the resource
 to.
 
-.SS "job limit [-r] \fIid\fR \fIlimit\fR"
-.SS "job limit [-r] \fIid\fR"
+.SS "job limit [-r] \fIfmri\fR \fIlimit\fR"
+.SS "job limit [-r] \fIfmri\fR"
 .LP
 Use this command to view the existing value of a limit, if any.  If no
 limit is specified, all limits will be printed.
@@ -74,7 +74,7 @@ The \fBjob limit\fR command accepts the following option:
 Display the limit in 'raw' form, e.g. bytes or seconds.
 .RE
 
-.SS "job unlimit \fIid\fR \fIlimit\fR"
+.SS "job unlimit \fIfmri\fR \fIlimit\fR"
 .LP
 Use this command to remove a limit from a job.  The limit will revert
 back to the system default limit.
@@ -88,8 +88,8 @@ This command sets the data limit for a job to 10MB:
 
 .in +2
 .nf
-example% job limit 1 max-data-size 10240
-example% job limit 1
+example% job limit myjob max-data-size 10240
+example% job limit myjob
 max-data-size = 10.00MB
 .fi
 .in -2
@@ -101,7 +101,7 @@ This command removes the data limit for a job:
 
 .in +2
 .nf
-example% job unlimit 1 max-data-size
+example% job unlimit myjob max-data-size
 .fi
 .in -2
 

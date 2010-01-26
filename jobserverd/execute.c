@@ -27,6 +27,7 @@
 #include	<grp.h>
 #include	<rctl.h>
 #include	<strings.h>
+#include	<ctype.h>
 
 #include	"execute.h"
 #include	"jobserver.h"
@@ -141,6 +142,37 @@ rctlblk_t	*blk = alloca(rctlblk_size()), *blk2 = alloca(rctlblk_size());
 }
 
 /*
+ * Turn an FMRI into a name suitable for a job log.
+ */
+static char *
+log_name(fmri)
+	char const	*fmri;
+{
+char const	*p;
+char		*n, *m;
+
+	p = fmri;
+	/* Skip the job:/ */
+	p += 5;
+	/* Skip the username */
+	if ((p = index(p, '/')) == NULL) {
+		logm(LOG_ERR, "log_name: mal-formed FMRI");
+		return NULL;
+	}
+
+	if ((n = strdup(p + 1)) == NULL) {
+		logm(LOG_ERR, "log_name: out of memory");
+		return NULL;
+	}
+	
+	for (m = n; *m; ++m)
+		if (!isalnum(*m) && !index("-_", *m))
+			*m = '_';
+
+	return n;
+}
+
+/*
  * Execute a program as a specific user.
  */
 pid_t
@@ -159,11 +191,12 @@ char		 tbuf[64];
 time_t		 now;
 struct tm	*tm;
 int		 lwfd;
+char		*logname;
 
 	assert(cmd);
 
-	if ((pwd = getpwuid(job->job_user)) == NULL) {
-		logm(LOG_ERR, "fork_execute: (uid=%ld) doesn't exist", (long) job->job_user);
+	if ((pwd = getpwnam(job->job_username)) == NULL) {
+		logm(LOG_ERR, "fork_execute: user %s doesn't exist", job->job_username);
 		goto err;
 	}
 
@@ -172,7 +205,12 @@ int		 lwfd;
 		goto err;
 	}
 
-	if (asprintf(&logfile, "%s/job_%ld.log", logdir, (long) job->job_id) == -1) {
+	if ((logname = log_name(job->job_fmri)) == NULL) {
+		logm(LOG_ERR, "fork_execute: cannot form logfile name");
+		goto err;
+	}
+
+	if (asprintf(&logfile, "%s/job_%s.log", logdir, logname) == -1) {
 		logm(LOG_ERR, "fork_execute: out of memory");
 		goto err;
 	}

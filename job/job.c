@@ -13,6 +13,7 @@
 #include	<sys/types.h>
 #include	<sys/stropts.h>
 
+#include	<strings.h>
 #include	<stdio.h>
 #include	<string.h>
 #include	<stdlib.h>
@@ -110,29 +111,29 @@ char const *u_add =
 "           -o <prop>=<value>   Specify properties for the new job (see 'job set').\n"
 "           -S <schedule>       Specify a schedule for the job (see 'job schedule').\n";
 char const *u_endis =
-"       job [-D] en[able] <id>\n"
-"       job [-D] dis[able] <id>\n"
+"       job [-D] en[able] <fmri>\n"
+"       job [-D] dis[able] <fmri>\n"
 "\n"
 "         Enable or disable the given job.\n";
 char const *u_delete =
-"       job [-D] del[ete] <id>\n"
+"       job [-D] del[ete] <fmri>\n"
 "\n"
 "         Delete the given job.  If running, the job must be stopped first.\n";
 char const *u_show =
-"       job [-D] show <id>\n"
+"       job [-D] show <fmri>\n"
 "\n"
 "         Show all available information about the given job.\n";
 char const *u_set =
-"       job [-D] set <id> <property>=<value> [<property>=<value> ...]\n"
-"       job [-D] unset <id> <property> [<property> ...]\n"
+"       job [-D] set <fmri> <property>=<value> [<property>=<value> ...]\n"
+"       job [-D] unset <fmri> <property> [<property> ...]\n"
 "\n"
 "         Set a property on a job.  Available properties:\n"
 "\n"
 "           start      The command used to start the job.\n"
 "           stop       The command used to stop the job.\n"
-"           name       The name of the job.\n";
+"           fmri       The job's FMRI.\n";
 char const *u_schedule =
-"       job [-D] sched[ule] <id> \"<time>\"\n"
+"       job [-D] sched[ule] <fmri> \"<time>\"\n"
 "\n"
 "         Schedule a job to run at a particular time.  Any of the\n"
 "         following time formats are accepted:\n"
@@ -144,18 +145,18 @@ char const *u_schedule =
 "\n"
 "         HH:MM should be specified in 24-hour format.\n";
 char const *u_clear =
-"       job [-D] clear <id>\n"
+"       job [-D] clear <fmri>\n"
 "\n"
 "         Clear maintenance state on a job.\n";
 char const *u_unschedule =
-"       job [-D] unsched[ule] [-s] <id>\n"
+"       job [-D] unsched[ule] [-s] <fmri>\n"
 "\n"
 "         Unschedule a previously scheduled job.\n"
 "\n"
 "           -s     Stop the job as well as unscheduling it.\n";
 char const *u_limit =
-"       job [-D] limit [-r] <job> <control> [value]\n"
-"       job [-D] unlimit <job> <control>\n"
+"       job [-D] limit [-r] <fmri> <control> [value]\n"
+"       job [-D] unlimit <fmri> <control>\n"
 "\n"
 "         View, set or clear the resource control <control> for the specified\n"
 "         <job>\n"
@@ -167,11 +168,11 @@ char const *u_quota =
 "\n"
 "           jobs-per-user     Maximum number of jobs a single user may add.\n"; 
 char const *u_start =
-"       job [-D] start <id>\n"
+"       job [-D] start <fmri>\n"
 "\n"
 "         Cause a scheduled job to be started immediately.\n";
 char const *u_stop =
-"       job [-D] stop <id>\n"
+"       job [-D] stop <fmri>\n"
 "\n"
 "         Cause a running scheduled job to be stopped.\n";
 static void
@@ -400,11 +401,10 @@ c_list (argc, argv)
 reply_t	*rep;
 char	*vec[NARG];
 int	 narg;
-int	 id_w = 0, user_w = 0, state_w = 0, rstate_w = 0, name_w = 0, i;
-struct	 passwd *pwd = NULL;
+int	 fmri_w = 0, state_w = 0, rstate_w = 0, i;
 uid_t	 uid;
 struct {
-	char	*id, *user, *state, *rstate, *name, *cmd;
+	char	*fmri, *state, *rstate, *name;
 } *ents = NULL;
 int nents = 0;
 
@@ -423,7 +423,7 @@ int nents = 0;
 
 		case 201:
 			narg = split(rep->text, vec);
-			if (narg < 6) {
+			if (narg < 3) {
 				(void) fprintf(stderr, "job: malformed line from server\n");
 				return 1;
 			}
@@ -433,22 +433,13 @@ int nents = 0;
 				return 1;
 			}
 
-			ents[nents].id = vec[0];
-			ents[nents].user = vec[1];
-			ents[nents].name = vec[2];
-			ents[nents].state = vec[3];
-			ents[nents].rstate = vec[4];
-			ents[nents].cmd = vec[5];
+			ents[nents].fmri = vec[0];
+			ents[nents].state = vec[1];
+			ents[nents].rstate = vec[2];
 
-			uid = atoi(ents[nents].user);
-			if ((pwd = getpwuid(uid)) != NULL)
-				ents[nents].user = strdup(pwd->pw_name);
-
-			if ((i = strlen(vec[0])) > id_w) id_w = i + 2;
-			if ((i = strlen(ents[nents].user)) > user_w) user_w = i + 2;
-			if ((i = strlen(vec[2])) > name_w) name_w = i + 2;
-			if ((i = strlen(vec[3])) > state_w) state_w = i + 2;
-			if ((i = strlen(vec[4])) > rstate_w) rstate_w = i + 2;
+			if ((i = strlen(vec[0])) > fmri_w) fmri_w = i + 2;
+			if ((i = strlen(vec[1])) > state_w) state_w = i + 2;
+			if ((i = strlen(vec[2])) > rstate_w) rstate_w = i + 2;
 
 			nents++;
 			break;
@@ -459,11 +450,8 @@ int nents = 0;
 				return 0;
 			}
 
-			printf("%s%*s %-*s %-*s %-*s %-*s CMD%s\n",
+			printf("%s%-*s %-*s FMRI%s\n",
 				bold,
-				id_w, "ID", 
-				name_w, "NAME",
-				user_w, "USER",
 				state_w, "STATE",
 				rstate_w, "RSTATE",
 				reset);
@@ -485,13 +473,10 @@ int nents = 0;
 				else
 					rcol = "";
 
-				printf("%*s %-*s %-*s %s%-*s%s %s%-*s%s %s\n",
-					id_w, ents[i].id,
-					name_w, ents[i].name,
-					user_w, ents[i].user,
+				printf("%s%-*s%s %s%-*s%s %s\n",
 					scol, state_w, ents[i].state, reset,
 					rcol, rstate_w, ents[i].rstate, reset,
-					ents[i].cmd);
+					ents[i].fmri);
 			}
 			return 0;
 
@@ -718,9 +703,7 @@ char	*vec[NARG];
 		}
 
 		switch (rep->numeric) {
-		case 201: (void) printf("          id: %s\n", rep->text); break;
-		case 202: (void) printf("        user: %s\n", rep->text); break;
-		case 203: (void) printf("        name: %s\n", rep->text); break;
+		case 201: (void) printf("%s%s%s:\n", bold, rep->text, reset); break;
 		case 204: (void) printf("       state: %s\n", rep->text); break;
 		case 205: (void) printf("      rstate: %s\n", rep->text); break;
 		case 206: (void) printf("start method: %s\n", rep->text); break;
@@ -803,8 +786,8 @@ reply_t	*rep;
 }
 
 static int
-do_set_property(id, prop, value)
-	int		 id;
+do_set_property(fmri, prop, value)
+	char const	*fmri;
 	char const	*prop;
 	char const	*value;
 {
@@ -815,8 +798,8 @@ reply_t	*rep;
 		key = "START";
 	else if (!strcmp(prop, "stop"))
 		key = "STOP";
-	else if (!strcmp(prop, "name"))
-		key = "NAME";
+	else if (!strcmp(prop, "fmri"))
+		key = "FMRI";
 	else if (!strcmp(prop, "project"))
 		key = "PROJECT";
 	else if (!strcmp(prop, "exit"))
@@ -828,7 +811,7 @@ reply_t	*rep;
 	else
 		return -1;
 
-	rep = simple_command("CHNG %d :%s=%s", id, key, value);
+	rep = simple_command("CHNG %s :%s=%s", fmri, key, value);
 	if (rep->numeric != 200) {
 		(void) fprintf(stderr, "%s\n", rep->text);
 		exit(1);
@@ -843,7 +826,7 @@ c_unset (argc, argv)
 	int argc;
 	char **argv;
 {
-int	id;
+char	*fmri;
 
 	if (argc < 2) {
 		(void) fprintf(stderr, "unset: not enough arguments\n");
@@ -851,12 +834,12 @@ int	id;
 		return 1;
 	}
 
-	id = atoi(argv[1]);
+	fmri = argv[1];
 	argv += 2;
 	argc -= 2;
 
 	while (argc) {
-		if (do_unset_property(id, argv[0]) == -1) {
+		if (do_unset_property(fmri, argv[0]) == -1) {
 			(void) fprintf(stderr, "set: unknown property \"%s\"\n", argv[0]); 
 			(void) fprintf(stderr, "%s", u_set);
 			return 1;
@@ -874,7 +857,7 @@ c_set (argc, argv)
 	int argc;
 	char **argv;
 {
-int	id;
+char	*fmri;
 
 	if (argc < 3) {
 		(void) fprintf(stderr, "set: not enough arguments\n");
@@ -882,7 +865,7 @@ int	id;
 		return 1;
 	}
 
-	id = atoi(argv[1]);
+	fmri = argv[1];
 	argv += 2;
 	argc -= 2;
 
@@ -896,7 +879,7 @@ int	id;
 
 		*v++ = 0;
 
-		if (do_set_property(id, k, v) == -1) {
+		if (do_set_property(fmri, k, v) == -1) {
 			(void) fprintf(stderr, "set: unknown property \"%s\"\n", k);
 			(void) fprintf(stderr, "%s", u_set);
 			return 1;
@@ -928,12 +911,8 @@ int nopts = 0;
 
 	optind = 1;
 
-	while ((c = getopt(argc, argv, "n:eo:S:")) != -1) {
+	while ((c = getopt(argc, argv, "eo:S:")) != -1) {
 		switch (c) {
-		case 'n':
-			name = optarg;
-			break;
-
 		case 'e':
 			do_enable = 1;
 			break;
@@ -971,24 +950,43 @@ int nopts = 0;
 		return 1;
 	}
 
-	if (argc != 1) {
+	if (argc > 2) {
 		(void) fprintf(stderr, "add: wrong number of arguments\n");
 		(void) fprintf(stderr, "%s", u_add);
 		return 1;
 	}
 
-	if (name == NULL)
+	if (argc > 1) {
 		name = argv[0];
+		argc--;
+		argv++;
+	}
+
+	if (name == NULL) {
+	char	*p;
+		if ((name = strdup(argv[0])) == NULL) {
+			(void) fprintf(stderr, "out of memory\n");
+			return 1;
+		}
+
+		/*
+		 * Turn the command into a valid FMRI.
+		 */
+		if (p = rindex(name, '/'))
+			name = p + 1;
+		for (p = name; *p; ++p)
+			if (!isalnum(*p) && !strchr("_-", *p))
+				*p = '_';
+	}
 
 	rep = simple_command("CRTE :%s", name);
-	(void) printf("New job ID is %s.\n", rep->text);
+	(void) printf("New job FMRI is %s.\n", rep->text);
 	if ((id = strdup(rep->text)) == NULL) {
-		(void) fprintf(stderr, "out of memory");
+		(void) fprintf(stderr, "out of memory\n");
 		return 1;
 	}
 
-	if (name)
-		simple_command("CHNG %s :START=%s", id, argv[0]);
+	simple_command("CHNG %s :START=%s", id, argv[0]);
 
 	for (i = 0; i < nopts; ++i) {
 		if (do_set_property(opts[i].prop, opts[i].value) == -1) {

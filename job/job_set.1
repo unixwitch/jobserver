@@ -1,14 +1,14 @@
-.TH job_set 1 "20 Jan 2010" "Jobserver" "User Commands"
+.TH job_set 1 "26 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job set \- set properties for a job
 .SH SYNOPSIS
 .LP
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBset\fR \fIid\fR \fIproperty\fR=\fIvalue\fR [\fIproperty\fR=\fIvalue ...\fR]
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBset\fR \fIfmri\fR \fIproperty\fR=\fIvalue\fR [\fIproperty\fR=\fIvalue ...\fR]
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunset\fR \fIid\fR \fIproperty\fR [\fIproperty\fR ...]
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunset\fR \fIfmri\fR \fIproperty\fR [\fIproperty\fR ...]
 .fi
 .SH DESCRIPTION
 .LP
@@ -64,7 +64,7 @@ The project the job will run in.
 
 .in +2
 .nf
-example% job set 1 project=batch
+example% job set myjob project=batch
 .fi
 .in -2
 
@@ -72,7 +72,7 @@ example% job set 1 project=batch
 
 .in +2
 .nf
-example% job unset 1 project
+example% job unset myjob project
 .fi
 .in -2
 

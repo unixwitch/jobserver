@@ -1,4 +1,4 @@
-.TH job_show 1 "20 Jan 2010" "Jobserver" "User Commands"
+.TH job_show 1 "26 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job show \- show job status
 .SH SYNOPSIS
@@ -8,13 +8,11 @@ Use this command to display the full status and configuration for a job.
 .SH EXAMPLE
 .in +2
 .nf
-example% job show 13
-          id: 13
-        user: 500
-        name: test.sh
+example% job show myjob
+         job: job:/jsmith/myjob
        state: disabled
       rstate: stopped
-start method: /home/rriver/test.sh
+start method: /home/jsmith/test.sh
  stop method: 
      project: default
     schedule: -

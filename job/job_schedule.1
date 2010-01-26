@@ -1,23 +1,23 @@
 '\" te
-.TH job_schedule 1 "20 Jan 2010" "Jobserver" "User Commands"
+.TH job_schedule 1 "26 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job schedule, job unschedule \- schedule or unschedule a job
 .SH SYNOPSIS
 .LP
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBsched\fR[\fBule\fR] \fIid\fR \fItime\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBsched\fR[\fBule\fR] \fIfmri\fR \fItime\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] [\fB-s\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] [\fB-s\fR] \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstart\fR \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstart\fR \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstop\fR \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstop\fR \fIfmri\fR
 .fi
 
 .SH DESCRIPTION
@@ -28,7 +28,7 @@ job.
 
 .SS "job sched"
 .LP
-The first form of the command schedules job \fIid\fR to run at \fItime\fR.
+The first form of the command schedules job \fIfmri\fR to run at \fItime\fR.
 \fItime\fR should be one of the following schedule specifications:
 
 .TS
@@ -103,7 +103,7 @@ This commands schedules a job to run at 03:00 every day:
 
 .in +2
 .nf
-example% job schedule 4 "every day at 03:00"
+example% job schedule myjob "every day at 03:00"
 .fi
 .in -2
 
@@ -114,7 +114,7 @@ This command removes the schedule from a job:
 
 .in +2
 .nf
-example% job unschedule 4
+example% job unschedule myjob
 .fi
 .in +2
 

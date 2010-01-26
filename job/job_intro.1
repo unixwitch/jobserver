@@ -1,4 +1,4 @@
-.TH job_intro 1 "20 Jan 2010" "Jobserver" "User Commands"
+.TH job_intro 1 "26 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job_intro \- quick introduction to the jobserver
 
@@ -20,6 +20,7 @@ command:
 .in +2
 .nf
 example% job add -e $HOME/myjob.sh
+New job FMRI is job:/jsmith/myjob_sh.
 .fi
 .in -2
 
@@ -31,27 +32,32 @@ enabled and started.  To view the status of the job, use \fBjob list\fR:
 .in +2
 .nf
 example% job list
-ID NAME       USER     STATE     RSTATE    CMD
- 2 myjob.sh   jsmith   enabled   running   /home/jsmith/myjob.sh
+STATE    RSTATE   FMRI
+enabled  running  job:/jsmith/myjob_sh
 .fi
 .in -2
 
 .LP
-The job id, in this case \fB2\fR, is used to uniquely identify the job.  You
-will need to use the job id whenever you interact with the jobserver.
+The job FMRI (Fault Management Resource Identifier), in this case
+\fBjob:/jsmith/myjob_sh\fR, is used to uniquely identify the job.  You will
+need to use the FMRI whenever you interact with the jobserver.  The FMRI
+can be abbreviated to the smallest part, so \fBjob:/jsmith/myjob_sh\fR could
+also be written as just \fBmyjob_sh\fR.
 
 .LP
-To stop a running job, use the \fBjob disable\fR \fIid\fR command.  The
+To stop a running job, use the \fBjob disable\fR \fIfmri\fR command.  The
 jobserver will send \fBSIGTERM\fR to all processes in the job, wait 30 seconds,
 then send \fBSIGKILL\fR to any remaining processes.  To delete a job
-entirely, use \fBjob delete\fR \fIid\fR.
+entirely, use \fBjob delete\fR \fIfmri\fR.
 
 .SH VIEWING JOB OUTPUT
 
 .LP
 Any output from the job will be sent to the file
-\fB$HOME/.job/job_\fR\fIid\fR\fB.log\fR, which will be rotated automatically
-once it reaches 1MB in size.
+\fB$HOME/.job/job_\fR\fIname\fR\fB.log\fR, which will be rotated automatically
+once it reaches 1MB in size.  \fIname\fR is constructed by taking the job's FMRI,
+removing the initial \fBjob:/\fR\fIusername\fR\fB/\fB, and replacing all '/'
+characters with '_' in the remainder.
 
 .SH SCHEDULED JOBS
 
@@ -62,9 +68,10 @@ particular time:
 .in +2
 .nf
 example% job add -S "every monday at 03:00" $HOME/myjob.sh
+New job FMRI is job:/jsmith/myjob_sh.
 example% job list
-ID NAME       USER     STATE       RSTATE    CMD
- 3 myjob.sh   jsmith   scheduled   stopped   /home/jsmith/myjob.sh
+STATE      RSTATE   FMRI
+scheduled  stopped  job:/jsmith/myjob_sh
 .fi
 .in -2
 
@@ -80,13 +87,13 @@ schedule\fR command:
 
 .in +2
 .nf
-example% job schedule 4 "every minute"
+example% job schedule myjob_sh "every minute"
 .fi
 .in -2
 
 .LP
-To force a scheduled job to start before it normally use, use the \fBjob
-start\fR \fIid\fR command.
+To force a scheduled job to start before it normally would be, use the \fBjob
+start\fR \fIfmri\fR command.
 
 .SH MAINTENANCE STATE
 .LP
@@ -95,15 +102,15 @@ If a job fails, it will be placed in the \fBmaintenance\fR state:
 .in +2
 .nf
 example% job list
-ID NAME       USER     STATE         RSTATE    CMD
- 3 myjob.sh   jsmith   maintenance   stopped   /home/jsmith/myjob.sh
+STATE        RSTATE   FMRI
+maintenance  stopped  job:/jsmith/myjob_sh
 .fi
 .in -2
 
 .LP
 A job in this state will never be started by the jobserver.  To restart the
 job, fix whatever problem caused the job to fail, then clear the maintenance
-state with \fBjob clear \fR\fIid\fR.  
+state with \fBjob clear \fR\fIfmri\fR.  
 
 .SH ENVIRONMENT
 
@@ -123,10 +130,10 @@ process to 10MB of memory:
 
 .in +2
 .nf
-example% job limit 3 max-data-size=10240
+example% job limit myjob_sh max-data-size=10240
 .fi
 .in -2
 
 .LP
-To view a job's resource limits, use \fBjob limit\fR \fIid\fR.  See
+To view a job's resource limits, use \fBjob limit\fR \fIfmri\fR.  See
 \fBjob_limit\fR(1) for a list of available resource limits.

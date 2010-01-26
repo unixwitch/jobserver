@@ -68,9 +68,9 @@ typedef struct {
 	/*
 	 * General information about a job.
 	 */
-	job_id_t 	job_id;
-	uid_t		 job_user;
-	char		*job_name;
+	job_id_t 	 job_id;
+	char		*job_username;
+	char		*job_fmri;
 	char		*job_start_method;
 	char		*job_stop_method;
 	uint32_t	 job_flags;
@@ -89,7 +89,7 @@ void	 statedb_shutdown(void);
 /*
  * Create a new job, insert it into the database, and return it.
  */
-job_t	*create_job(uid_t user, char const *name);
+job_t	*create_job(char const *user, char const *name);
 
 /*
  * Find an existing job in the database.
@@ -109,7 +109,23 @@ void	 free_job(job_t *);
 /*
  * Rename a job in the database.
  */
-int	 job_set_name(job_t *, char const *);
+int	 job_set_fmri(job_t *, char const *);
+
+/*
+ * Find a job by partial or full FMRI.  For the job name:
+ *
+ *   job:/jsmith/foo/myjob
+ *
+ * The following specifications will be accepted:
+ *
+ *   job:/jsmith/foo/myjob
+ *   jsmith/foo/myjob
+ *   foo/myjob
+ *   myjob
+ *
+ * If the specification matches more than one FMRI, an error is returned.
+ */
+job_t	*find_job_fmri(char const *);
 
 /*
  * Enumerate all jobs, or all jobs owned by a particular user.  For each job
@@ -118,7 +134,7 @@ int	 job_set_name(job_t *, char const *);
  */
 typedef int (*job_enumerate_callback) (job_t *, void *);
 int	 job_enumerate(job_enumerate_callback, void *);
-int	 job_enumerate_user(uid_t, job_enumerate_callback, void *);
+int	 job_enumerate_user(char const *, job_enumerate_callback, void *);
 
 /*
  * Change the start/stop methods for the job in the database.
@@ -177,7 +193,7 @@ int	job_set_project(job_t *, char const *project);
 /*
  * Count the number of jobs created by a given user.
  */
-int	njobs_for_user(uid_t);
+int	njobs_for_user(char const *);
 
 /*
  * Fetch/change quotas.
@@ -193,6 +209,11 @@ int	quota_set_jobs_per_user(int);
 #define JOB_DELETE	0x4	/* Delete a job */
 #define JOB_STARTSTOP	0x8	/* Enable or disable a job */
 
-int	job_access(job_t *, uid_t, int);
+int	job_access(job_t *, char const *, int);
+
+/*
+ * Check if an FMRI is syntactically valid.
+ */
+int	valid_fmri(char const *);
 
 #endif	/* !STATE_H */

@@ -1,4 +1,4 @@
-.TH job 1 "20 Jan 2010" "Jobserver" "User Commands"
+.TH job 1 "26 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job \- manage jobs
 .SH SYNOPSIS
@@ -8,47 +8,47 @@ job \- manage jobs
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdel\fR[\fBete\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdel\fR[\fBete\fR] \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBen\fR[\fBable\fR] \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBdis\fR[\fBable\fR] \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBset\fR \fIid\fR \fIproperty\fR=\fIvalue\fR [\fIproperty\fR=\fIvalue ...\fR]
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBset\fR \fIfmri\fR \fIproperty\fR=\fIvalue\fR [\fIproperty\fR=\fIvalue ...\fR]
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunset\fR \fIid\fR \fIproperty\fR [\fIproperty\fR ...\fR]
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunset\fR \fIfmri\fR \fIproperty\fR [\fIproperty\fR ...\fR]
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBshow\fR \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBshow\fR \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBclear\fR \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBclear\fR \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBsched\fR[\fBule\fR] \fIid\fR \fItime\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBsched\fR[\fBule\fR] \fIfmri\fR \fItime\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] [\fB-s\fR] \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBunsched\fR[\fBule\fR] [\fB-s\fR] \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstart\fR \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstart\fR \fIfmri\fR
 .fi
 
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstop\fR \fIid\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBstop\fR \fIfmri\fR
 .fi
 
 .nf
@@ -73,11 +73,18 @@ specific manual pages.  For an introduction to the jobserver, see the
 .SH OVERVIEW
 .LP
 A \fIjob\fR is an entity consisting of a start command, optionally a stop
-command, and their associated configuration.  Once the job's start command is
+command, and its associated configuration.  Once the job's start command is
 executed, the job is considered to be running.  Any additional processes
 started by the start command are added to the job.  If the job is disabled, or
 certain fatal events occur, the stop command is executed.  Once all processes
 in the job exit, the job is considered to be stopped.
+
+.LP
+Each job is identified by an FMRI (Fault Management Resource Identifier), a
+URL-like string of the form \fBjob:/\fB\fIusername\fR\fB/\fIname\fR.  The
+\fIname\fR portion of the FMRI is specified by the user when the job is
+created.  FMRIs may be abbreviated when referring to a job, so
+\fBjob:/jsmith/myjob\fR could be written as simply \fBmyjob\fR.
 
 .LP
 Each job is either a normal job or a scheduled job.  A normal job must be
@@ -242,6 +249,3 @@ Set or clear resource limits on a job.  See \fBjob_limit\fR(1).
 .rt
 Configure user quotas.  See \fBjob_quota\fR(1).
 .RE
-
-.SH AUTHOR
-The jobserver was written by River Tarnell <river.tarnell@wikimedia.de>.

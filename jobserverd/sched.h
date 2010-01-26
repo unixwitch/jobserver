@@ -54,6 +54,7 @@ typedef struct {
 int sched_start(job_t *);
 int sched_stop(job_t *);
 sjob_state_t sched_get_state(job_t *);
+void sched_stop_all(void);
 
 /*
  * Call one of these functions when a job is enabled or disabled
@@ -69,5 +70,10 @@ void sched_job_unscheduled(job_t *);
  * Get the next runtime of a scheduled job.
  */
 time_t sched_nextrun(cron_t *);
+
+/*
+ * Return the number of running jobs.
+ */
+int sched_jobs_running(void);
 
 #endif	/* !SCHED_H */

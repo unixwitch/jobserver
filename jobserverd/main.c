@@ -38,6 +38,9 @@
 #include	"state.h"
 #include	"sched.h"
 
+time_t current_time;
+int shutting_down;
+
 /*
  * Log some message.
  */
@@ -136,6 +139,14 @@ struct rlimit	nofile;
 
 	for (;;) {
 	port_event_t	ev;
+		/*
+		 * If we're shutting down, see if everything has exited yet.
+		 */
+		if (shutting_down && sched_jobs_running() == 0) {
+			statedb_shutdown();
+			return 0;
+		}
+
 		if (port_get(port, &ev, NULL) == -1) {
 			if (errno != EINTR) {
 				logm(LOG_ERR, "port_get: %s", strerror(errno));
@@ -157,8 +168,9 @@ struct rlimit	nofile;
 			case SIGINT:
 			case SIGTERM:
 				logm(LOG_NOTICE, "shutting down (signal)");
-				statedb_shutdown();
-				return 0;
+				sched_stop_all();
+				shutting_down = 1;
+				break;
 
 			default:
 				abort();

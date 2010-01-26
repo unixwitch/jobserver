@@ -42,4 +42,10 @@ int asprintf(char **s, char const *fmt, ...);
  */
 extern time_t current_time;
 
+/*
+ * This is non-zero if a shutdown is in progress, and indicates that nothing
+ * 'new' should be done, in particular starting jobs.
+ */
+extern int shutting_down;
+
 #endif	/* JOBSERVER_H */

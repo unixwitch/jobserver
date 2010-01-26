@@ -132,6 +132,46 @@ sjob_t	*nsj, *nj = NULL;
 	return nj;
 }
 
+int
+sched_jobs_running()
+{
+int	 i, n = 0;
+	for (i = 0; i < nsjobs; ++i) {
+		if (sjobs[i].sjob_id == -1)
+			continue;
+
+		if (sjobs[i].sjob_state == SJOB_RUNNING ||
+		    sjobs[i].sjob_state == SJOB_STOPPING)
+			n++;
+	}
+
+	return n;
+}
+
+void
+sched_stop_all()
+{
+int	 i;
+
+	for (i = 0; i < nsjobs; ++i) {
+		if (sjobs[i].sjob_id == -1)
+			continue;
+
+		if (sjobs[i].sjob_state == SJOB_RUNNING) {
+		job_t	*job;
+			if ((job = find_job(sjobs[i].sjob_id)) == NULL) {
+				logm(LOG_WARNING, "sched_stop_all: could not find job "
+						"for sjob id %d", sjobs[i].sjob_id);
+				continue;
+			}
+
+			if (sched_stop(job) == -1)
+				logm(LOG_WARNING, "sched_stop_all: sched_stop failed: %s",
+						strerror(errno));
+		}
+	}
+}
+
 sjob_state_t
 sched_get_state(job)
 	job_t	*job;
@@ -457,6 +497,9 @@ int		 i;
 
 		sjob->sjob_state = SJOB_STOPPED;
 
+		if (shutting_down)
+			break;
+
 		/*
 		 * See if we should restart the job.
 		 */
@@ -494,6 +537,10 @@ int		 i;
 
 	case CT_PR_EV_EXIT:
 		/* A process in the contract exited. */
+
+		if (shutting_down)
+			break;
+
 		if (ct_pr_event_get_pid(ev, &pid) == -1) {
 			logm(LOG_WARNING, "job %ld: ct_pr_event_get_pid failed: %s",
 					(long) sjob->sjob_id, strerror(errno));
@@ -694,6 +741,9 @@ char		 timestr[128];
 		return;
 	sjob->sjob_fatal = 1;
 
+	if ((job = find_job(sjob->sjob_id)) == NULL)
+		abort();
+
 	if ((job->job_crash_action & ST_EXIT_MAIL) && ((pwd = getpwuid(job->job_user)) != NULL)) {
 		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		snprintf(msg, sizeof(msg),
@@ -735,7 +785,7 @@ time_t
 sched_nextrun(sched)
 	cron_t	*sched;
 {
-struct tm	*tm = gmtime(&now);
+struct tm	*tm = gmtime(&current_time);
 int		 hr, min, wday;
 int		 a1, a2;
 

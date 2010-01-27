@@ -81,6 +81,7 @@ typedef struct {
 	job_rctl_t	*job_rctls;
 	int		 job_nrctls;
 	char		*job_project;
+	ctid_t		 job_contract;
 } job_t;
 
 int	 statedb_init(void);
@@ -186,6 +187,11 @@ int		 get_rctl_type(char const *name);
 char const	*format_rctl(rctl_qty_t value, int type);
 
 /*
+ * Set a job's contract, for restart recovery.
+ */
+int	 job_set_ctid(job_t *, ctid_t);
+
+/*
  * Set the project for a job.
  */
 int	job_set_project(job_t *, char const *project);
@@ -215,5 +221,12 @@ int	job_access(job_t *, char const *, int);
  * Check if an FMRI is syntactically valid.
  */
 int	valid_fmri(char const *);
+
+/*
+ * Track the system boot time at each startup.  If the system hasn't
+ * rebooted since the last boot, we try to reassociate orphaned
+ * contracts.
+ */
+time_t	get_boottime(time_t);
 
 #endif	/* !STATE_H */

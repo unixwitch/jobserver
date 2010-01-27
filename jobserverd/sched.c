@@ -25,6 +25,7 @@
 #include	<strings.h>
 #include	<alloca.h>
 #include	<deflt.h>
+#include	<utmpx.h>
 
 #include	"sched.h"
 #include	"jobserver.h"
@@ -43,7 +44,10 @@ static void sched_handle_exit(sjob_t *);
 static void sched_handle_fail(sjob_t *);
 static void sched_handle_crash(sjob_t *);
 
+static int do_start_job(job_t *, void *);
+
 static int ctfd;
+static int adopting = 0;
 
 void sched_fd_callback(int, fde_evt_type_t, void *);
 
@@ -52,7 +56,9 @@ int
 sched_init(prt)
 	int prt;
 {
-uint_t	inform;
+uint_t		 inform;
+struct utmpx	*ut;
+time_t		 newboot, oldboot;
 
 	if ((ctfd = open64(CTFS_ROOT "/process/template", O_RDWR)) == -1) {
 		logm(LOG_ERR, "sched_init: cannot open process template: %s",
@@ -62,12 +68,6 @@ uint_t	inform;
 
 	if (fd_set_cloexec(ctfd, 1) == -1) {
 		logm(LOG_ERR, "sched_init: cannot set cloexec on process template fd: %s",
-				strerror(errno));
-		return -1;
-	}
-
-	if (ct_pr_tmpl_set_param(ctfd, CT_PR_NOORPHAN) == -1) {
-		logm(LOG_ERR, "sched_init: cannot set CT_PR_NOORPHAN: %s",
 				strerror(errno));
 		return -1;
 	}
@@ -85,11 +85,46 @@ uint_t	inform;
 		return -1;
 	}
 
+#if 1	/* Remove this when contract adoption is working  */
+	if (ct_pr_tmpl_set_param(ctfd, CT_PR_NOORPHAN) == -1) {
+		logm(LOG_ERR, "sched_init: cannot set CT_PR_NOORPHAN: %s",
+			strerror(errno));
+		return -1;
+	}
+#endif
+
 	if (ct_tmpl_activate(ctfd) == -1) {
 		logm(LOG_ERR, "sched_init: cannot activate template: %s",
 				strerror(errno));
 		return -1;
 	}
+
+	setutxent();
+	while (ut = getutxent()) {
+		if (ut->ut_type != BOOT_TIME)
+			continue;
+		newboot = ut->ut_xtime;
+		break;
+	}
+	endutxent();
+
+	if (newboot == 0)
+		logm(LOG_WARNING, "boottime: cannot find boot time record in utmp?");
+
+	oldboot = get_boottime(newboot);
+
+	if (oldboot == newboot)
+		/*
+		 * The system hasn't rebooted since we last started.  Try to
+		 * re-adopt any orphaned contracts.
+		 */
+		adopting = 1;
+
+	/*
+	 * Start all enabled jobs.
+	 */
+	if (job_enumerate(do_start_job, NULL) == -1)
+		logm(LOG_ERR, "sched_init: job_enumerate failed");
 
 	return 0;
 }
@@ -158,6 +193,8 @@ int	 i;
 			continue;
 
 		if (sjobs[i].sjob_state == SJOB_RUNNING) {
+			ct_ctl_abandon(sjobs[i].sjob_contract_fd);
+#if 0
 		job_t	*job;
 			if ((job = find_job(sjobs[i].sjob_id)) == NULL) {
 				logm(LOG_WARNING, "sched_stop_all: could not find job "
@@ -168,6 +205,7 @@ int	 i;
 			if (sched_stop(job) == -1)
 				logm(LOG_WARNING, "sched_stop_all: sched_stop failed: %s",
 						strerror(errno));
+#endif
 		}
 	}
 }
@@ -339,6 +377,9 @@ char		 ctevents[PATH_MAX];
 		exit(1);
 	}
 
+	if (job_set_ctid(job, sjob->sjob_contract) == -1)
+		logm(LOG_WARNING, "sched_start: job_update failed");
+
 	sjob->sjob_state = SJOB_RUNNING;
 	return 0;
 
@@ -351,6 +392,9 @@ void
 free_sjob(sjob)
 	sjob_t	*sjob;
 {
+	if (!sjob)
+		return;
+
 	if (sjob->sjob_contract_fd != -1)
 		(void) close(sjob->sjob_contract_fd);
 	if (sjob->sjob_stop_contract_fd != -1)
@@ -431,7 +475,7 @@ sjob_t		*sjob = NULL;
 ctid_t		 ctid;
 pid_t		 pid;
 int		 sig, status = 0;
-job_t		*job;
+job_t		*job = NULL;
 int		 i;
 
 	for (i = 0; i < nsjobs; ++i) {
@@ -487,6 +531,12 @@ int		 i;
 		(void) close(sjob->sjob_contract_fd);
 		(void) close_fd(sjob->sjob_eventfd);
 
+		if ((job = find_job(sjob->sjob_id)) == NULL)
+			abort();
+
+		if (job_set_ctid(job, -1) == -1)
+			logm(LOG_WARNING, "job %ld: cannot set ctid", (long) sjob->sjob_id);
+
 		sjob->sjob_eventfd = -1;
 		sjob->sjob_contract_fd = -1;
 		sjob->sjob_contract = -1;
@@ -503,9 +553,6 @@ int		 i;
 		/*
 		 * See if we should restart the job.
 		 */
-		if ((job = find_job(sjob->sjob_id)) == NULL)
-			abort();
-
 		if (!(job->job_flags & JOB_MAINTENANCE)) {
 			if (job->job_flags & JOB_SCHEDULED) {
 				if (job->job_schedule.cron_type != CRON_ABSOLUTE)
@@ -911,3 +958,105 @@ job_access(job, username, access)
 	/* Should support ACLs here... */
 	return 0;
 }
+
+/*ARGSUSED*/
+static int
+do_start_job(job, udata)
+	job_t	*job;
+	void	*udata;
+{
+sjob_t	*sjob = NULL;
+#if 0	/* Not working yet */
+	/*
+	 * If we're adopting, and a contract still exists, but the job is
+	 * either disabled or maintenance is set, it's not clear what we should
+	 * do.  The least worst action seems to be overriding our state,
+	 * clearing maintenance and setting enabled.  This at least means we
+	 * will agree with the system's actual state.
+	 */
+	if (adopting && job->job_contract != -1) {
+	int	 ctfd;
+	char	 statfile[128], ctevents[128], ctlfile[128];
+
+		if ((sjob = sjob_find(job->job_id)) == NULL)
+			goto err;
+
+		sjob->sjob_fatal = 0;
+		sjob->sjob_start_time = current_time;
+		sjob->sjob_contract = job->job_contract;
+
+		/*
+		 * Populate the sjob with contract information.
+		 */
+		snprintf(statfile, sizeof statfile,
+			CTFS_ROOT "/process/%d/status", job->job_contract);
+		if ((sjob->sjob_contract_fd = open64(statfile, O_RDONLY)) == -1) {
+			logm(LOG_ERR, "do_start_job: %s: %s", statfile, strerror(errno));
+			goto err;
+		}
+
+		if (fd_set_cloexec(sjob->sjob_contract_fd, 1) == -1) {
+			logm(LOG_ERR, "do_start_job: cannot set cloexec on contract fd: %s",
+					strerror(errno));
+			goto err;
+		}
+
+		snprintf(ctlfile, sizeof ctlfile,
+			CTFS_ROOT "/process/%d/ctl", job->job_contract);
+		if ((ctfd = open64(ctlfile, O_WRONLY)) == -1) {
+			logm(LOG_ERR, "do_start_job: %s: %s", ctlfile, strerror(errno));
+			goto err;
+		}
+		if (ct_ctl_adopt(ctfd) != 0) {
+			logm(LOG_ERR, "do_start_job: cannot adopt %d: %s",
+					job->job_contract, strerror(errno));
+			close(ctfd);
+			goto err;
+		}
+		close(ctfd);
+
+		/*
+		 * Register for events on the contract event fd.
+		 */
+		(void) snprintf(ctevents, sizeof ctevents, "%s/process/%d/events",
+				CTFS_ROOT, sjob->sjob_contract);
+		if ((sjob->sjob_eventfd = open64(ctevents, O_RDONLY)) == -1) {
+			logm(LOG_ERR, "do_start_job: %s: %s", ctevents, strerror(errno));
+			goto err;
+		}
+
+		if (fd_open(sjob->sjob_eventfd) == -1) {
+			logm(LOG_ERR, "do_start_job: fd_open failed");
+			goto err;
+		}
+
+		if (register_fd(sjob->sjob_eventfd, FDE_READ, sched_fd_callback, NULL) == -1) {
+			logm(LOG_ERR, "do_start_job: register_fd(%d): %s", sjob->sjob_eventfd, strerror(errno));
+			goto err;
+		}
+
+		sjob->sjob_state = SJOB_RUNNING;
+		return 0;
+	}
+
+err:
+	free_sjob(sjob);
+#endif	
+
+	if (job->job_flags & JOB_MAINTENANCE)
+		return 0;
+
+	if (job->job_flags & JOB_ENABLED) {
+		if (job->job_flags & JOB_SCHEDULED) {
+			sched_job_scheduled(job);
+		} else {
+			if (sched_start(job) == -1)
+				logm(LOG_ERR, "do_start_job: job %ld: sched_start failed",
+						(long) job->job_id);
+		}
+		return 0;
+	}
+
+	return 0;
+}
+

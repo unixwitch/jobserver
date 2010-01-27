@@ -179,7 +179,6 @@ ctl_client_t	*c = NULL;
 		nclients++;
 	}
 
-	free(c->cc_name);
 	bzero(c, sizeof(*c));
 
 	c->cc_fd = fd;
@@ -1029,6 +1028,7 @@ ctl_close(client)
 	if (unregister_fd(client->cc_fd, FDE_BOTH) == -1)
 		logm(LOG_WARNING, "ctl_close: unregister_fd failed");
 
+	free(client->cc_name);
 	close_fd(client->cc_fd);
 	client->cc_fd = -1;
 }

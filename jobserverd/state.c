@@ -30,7 +30,6 @@ static DB	*db_job;
 static DB	*db_config;
 
 static int job_update(job_t *);
-static int do_start_job(job_t *, void *);
 
 int
 statedb_init()
@@ -108,14 +107,6 @@ struct stat	sb;
 					DB_CREATE | DB_AUTO_COMMIT, 0)) != 0) {
 		logm(LOG_ERR, "statedb_init: db open failed: %s",
 				db_strerror(err));
-		goto err;
-	}
-
-	/*
-	 * Start all enabled jobs.
-	 */
-	if (job_enumerate(do_start_job, NULL) == -1) {
-		logm(LOG_ERR, "statedb_init: job_enumerate failed");
 		goto err;
 	}
 
@@ -389,7 +380,7 @@ unserialise_job(job, buf, sz)
 	char	 *buf;
 {
 nvlist_t	*nvl = NULL;
-int32_t		 ct, ca1, ca2;
+int32_t		 ct, ca1, ca2, ctid;
 char		*start = NULL, *stop = NULL, *proj = NULL, *fmri = NULL, *username;
 uchar_t		*rctls;
 uint_t		 nrctls;
@@ -456,6 +447,11 @@ uint_t		 nrctls;
 			goto err;
 		}
 	}
+
+	if (nvlist_lookup_int32(nvl, "ctid", &ctid) == 0)
+		(*job)->job_contract = ctid;
+	else
+		(*job)->job_contract = -1;
 
 	if (nvlist_lookup_byte_array(nvl, "rctls", &rctls, &nrctls) == 0) {
 		/*LINTED*/
@@ -707,6 +703,19 @@ int	 ret;
 }
 
 int
+job_set_ctid(job, ctid)
+	job_t	*job;
+	ctid_t	 ctid;
+{
+int	 ret;
+
+	job->job_contract = ctid;
+	ret = job_update(job);
+
+	return ret;
+}
+
+int
 job_set_exit_action(job, flags)
 	job_t	*job;
 	int	flags;
@@ -834,6 +843,7 @@ nvlist_t	*nvl = NULL;
 		nvlist_add_uint32(nvl, "exit_action", job->job_exit_action) != 0 ||
 		nvlist_add_uint32(nvl, "crash_action", job->job_crash_action) != 0 ||
 		nvlist_add_uint32(nvl, "fail_action", job->job_fail_action) != 0 ||
+		nvlist_add_int32(nvl, "ctid", job->job_contract) != 0 ||
 		nvlist_add_int32(nvl, "cron_type", (int32_t) job->job_schedule.cron_type) != 0 ||
 		nvlist_add_int32(nvl, "cron_arg1", (int32_t) job->job_schedule.cron_arg1) != 0 ||
 		nvlist_add_int32(nvl, "cron_arg2", (int32_t) job->job_schedule.cron_arg2) != 0) {
@@ -996,28 +1006,6 @@ err:
 	free_job(job);
 
 	return -1;
-}
-
-/*ARGSUSED*/
-static int
-do_start_job(job, udata)
-	job_t	*job;
-	void	*udata;
-{
-	if (job->job_flags & JOB_MAINTENANCE)
-		return 0;
-	if (job->job_flags & JOB_ENABLED) {
-		if (job->job_flags & JOB_SCHEDULED) {
-			sched_job_scheduled(job);
-		} else {
-			if (sched_start(job) == -1)
-				logm(LOG_ERR, "do_start_job: job %ld: sched_start failed",
-						(long) job->job_id);
-		}
-		return 0;
-	}
-
-	return 0;
 }
 
 int
@@ -1635,4 +1623,61 @@ char const	*p;
 		return 0;
 
 	return 1;
+}
+
+time_t
+get_boottime(new)
+	time_t	new;
+{
+struct utmpx	*ut;
+time_t		 old = 0;
+DBT		 key, data;
+DB_TXN		*txn;
+int		 err;
+job_id_t	 id;
+
+	assert(env);
+	assert(db_config);
+
+	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
+		logm(LOG_ERR, "get_boottime: txn start failed: %s",
+				db_strerror(errno));
+		return -1;
+	}
+
+	bzero(&key, sizeof key);
+	bzero(&data, sizeof data);
+
+	key.data = "last_boottime";
+	key.size = strlen(key.data);
+
+	data.data = &old;
+	data.size = data.ulen = sizeof(old);
+	data.flags = DB_DBT_USERMEM;
+
+	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
+		if (err != DB_NOTFOUND) {
+			logm(LOG_ERR, "get_boottime: db get failed: %s",
+					db_strerror(err));
+			(void) txn->abort(txn);
+			return -1;
+		}
+	}
+
+	data.data = &new;
+
+	if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
+		logm(LOG_ERR, "get_boottime: db put failed: %s",
+				db_strerror(err));
+		(void) txn->abort(txn);
+		return -1;
+	}
+
+	if ((err = txn->commit(txn, 0)) != 0) {
+		logm(LOG_ERR, "get_boottime: commit failed: %s",
+				db_strerror(err));
+		return -1;
+	}
+
+	return old;
 }

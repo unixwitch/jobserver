@@ -117,13 +117,13 @@ struct rlimit	nofile;
 		return 1;
 	}
 
-	if (sched_init(port) == -1) {
-		logm(LOG_ERR, "cannot initialise scheduler");
+	if (statedb_init() == -1) {
+		logm(LOG_ERR, "cannot initialise database");
 		return 1;
 	}
 
-	if (statedb_init() == -1) {
-		logm(LOG_ERR, "cannot initialise database");
+	if (sched_init(port) == -1) {
+		logm(LOG_ERR, "cannot initialise scheduler");
 		return 1;
 	}
 
@@ -170,6 +170,7 @@ struct rlimit	nofile;
 				logm(LOG_NOTICE, "shutting down (signal)");
 				sched_stop_all();
 				shutting_down = 1;
+				exit(0);
 				break;
 
 			default:

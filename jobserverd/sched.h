@@ -18,6 +18,7 @@
 
 #include	"state.h"
 #include	"event.h"
+#include	"ct.h"
 
 /*
  * If a non-scheduled job is running for less than this many seconds, we
@@ -38,11 +39,8 @@ typedef enum {
 typedef struct {
 	job_id_t	 sjob_id;		/* job this sjob represents */
 	sjob_state_t	 sjob_state;		
-	ctid_t		 sjob_contract;		/* contract of the job itself */
-	int		 sjob_contract_fd;
-	ctid_t		 sjob_stop_contract;	/* contract of the stop method, if any */
-	int		 sjob_stop_contract_fd;
-	int		 sjob_eventfd;
+	contract_t	*sjob_contract;
+	contract_t	*sjob_stop_contract;
 	ev_id_t		 sjob_timer;
 	pid_t		 sjob_pid;
 	int		 sjob_fatal;		/* job received a fatal event */

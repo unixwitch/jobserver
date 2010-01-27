@@ -91,7 +91,6 @@ event_t	*ev;
 	ev->ev_abstime = current_time + when;
 
 	ev_recalc();
-	/*LINTED*/
 	return (ev_id_t) (ev - events);
 }
 
@@ -113,7 +112,6 @@ event_t	*ev;
 	ev->ev_abstime = current_time + when;
 
 	ev_recalc();
-	/*LINTED*/
 	return (ev_id_t) (ev - events);
 }
 

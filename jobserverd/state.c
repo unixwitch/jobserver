@@ -18,6 +18,7 @@
 #include	<rctl.h>
 #include	<project.h>
 #include	<pwd.h>
+#include	<ctype.h>
 
 #include	"jobserver.h"
 #include	"state.h"
@@ -461,7 +462,6 @@ uint_t		 nrctls;
 			goto err;
 		}
 
-		/*LINTED*/
 		bcopy(rctls, (*job)->job_rctls, sizeof(job_rctl_t) * nrctls);
 	} else {
 		(*job)->job_nrctls = 0;
@@ -624,7 +624,8 @@ struct find_fmri_data	data;
 	bzero(&data, sizeof(data));
 	data.fmri = fmri;
 
-	job_enumerate(find_job_fmri_callback, &data);
+	if (job_enumerate(find_job_fmri_callback, &data) == -1)
+		logm(LOG_WARNING, "find_job_fmri: job_enumerate failed");
 
 	if (data.nfound != 1) {
 		return NULL;
@@ -843,7 +844,7 @@ nvlist_t	*nvl = NULL;
 		nvlist_add_uint32(nvl, "exit_action", job->job_exit_action) != 0 ||
 		nvlist_add_uint32(nvl, "crash_action", job->job_crash_action) != 0 ||
 		nvlist_add_uint32(nvl, "fail_action", job->job_fail_action) != 0 ||
-		nvlist_add_int32(nvl, "ctid", job->job_contract) != 0 ||
+		nvlist_add_int32(nvl, "ctid", (int) job->job_contract) != 0 ||
 		nvlist_add_int32(nvl, "cron_type", (int32_t) job->job_schedule.cron_type) != 0 ||
 		nvlist_add_int32(nvl, "cron_arg1", (int32_t) job->job_schedule.cron_arg1) != 0 ||
 		nvlist_add_int32(nvl, "cron_arg2", (int32_t) job->job_schedule.cron_arg2) != 0) {
@@ -854,7 +855,6 @@ nvlist_t	*nvl = NULL;
 
 	if (job->job_nrctls && nvlist_add_byte_array(nvl, "rctls", 
 		(u_char *) job->job_rctls,
-		/*LINTED*/
 		sizeof(job_rctl_t) * job->job_nrctls) != 0) {
 
 		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
@@ -1235,7 +1235,6 @@ int		 a1, a2;
 
 		min = a2 % 60;
 		hr = a2 / 60;
-		/*LINTED*/
 		(void) snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
 				" at %02d:%02d", hr, min);
 		return buf;
@@ -1257,31 +1256,31 @@ size_t		i = 0;
 		return "a very short time";
 
 	if (when > (60*60*24*7)) {
-		snprintf(buf + i, sizeof(buf) - i, "%dw", (when / (60 * 60 * 24 * 7)));
+		(void) snprintf(buf + i, sizeof(buf) - i, "%dw", (when / (60 * 60 * 24 * 7)));
 		i += strlen(buf + i);
 		when %= (60 * 60 * 24 * 7);
 	}
 
 	if (when > (60*60*24)) {
-		snprintf(buf + i, sizeof(buf) - i, "%dd", (when / (60 * 60 * 24)));
+		(void) snprintf(buf + i, sizeof(buf) - i, "%dd", (when / (60 * 60 * 24)));
 		i += strlen(buf + i);
 		when %= (60 * 60 * 24);
 	}
 
 	if (when > (60*60)) {
-		snprintf(buf + i, sizeof(buf) - i, "%dh", (when / (60 * 60)));
+		(void) snprintf(buf + i, sizeof(buf) - i, "%dh", (when / (60 * 60)));
 		i += strlen(buf + i);
 		when %= (60 * 60);
 	}
 
 	if (when > 60) {
-		snprintf(buf + i, sizeof(buf) - i, "%dm", (when / 60));
+		(void) snprintf(buf + i, sizeof(buf) - i, "%dm", (when / 60));
 		i += strlen(buf + i);
 		when %= 60;
 	}
 
 	if (when)
-		snprintf(buf + i, sizeof(buf) - i, "%ds", when);
+		(void) snprintf(buf + i, sizeof(buf) - i, "%ds", when);
 
 	return buf;
 }
@@ -1308,7 +1307,6 @@ int	 i;
 		return job->job_rctls[i].jr_value;
 	}
 
-	/*LINTED sign extension*/
 	return -1;
 }
 
@@ -1629,12 +1627,10 @@ time_t
 get_boottime(new)
 	time_t	new;
 {
-struct utmpx	*ut;
 time_t		 old = 0;
 DBT		 key, data;
 DB_TXN		*txn;
 int		 err;
-job_id_t	 id;
 
 	assert(env);
 	assert(db_config);
@@ -1681,3 +1677,21 @@ job_id_t	 id;
 
 	return old;
 }
+
+int
+job_access(job, username, access)
+	job_t		*job;
+	char const	*username;
+	int		 access;
+{
+	/*
+	 * Currently, we just allow users access to their own jobs and disallow
+	 * access to all other users.
+	 */
+	if (!strcmp(job->job_username, username))
+		return 1;
+
+	/* Should support ACLs here... */
+	return 0;
+}
+

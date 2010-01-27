@@ -168,7 +168,6 @@ ctl_client_t	*c = NULL;
 
 	if (c == NULL) {
 	ctl_client_t	*ncs;
-		/*LINTED*/
 		if ((ncs = realloc(clients, sizeof(*clients) * (nclients + 1))) == NULL) {
 			logm(LOG_ERR, "new_client: out of memory");
 			return NULL;
@@ -844,29 +843,29 @@ char		 buf[64];
 
 	buf[0] = 0;
 	if (job->job_exit_action & ST_EXIT_RESTART)
-		strlcat(buf, "restart", sizeof(buf));
+		(void) strlcat(buf, "restart", sizeof(buf));
 	else if (job->job_exit_action & ST_EXIT_DISABLE)
-		strlcat(buf, "disable", sizeof(buf));
+		(void) strlcat(buf, "disable", sizeof(buf));
 	if (job->job_exit_action & ST_EXIT_MAIL)
-		strlcat(buf, ",mail", sizeof(buf));
+		(void) strlcat(buf, ",mail", sizeof(buf));
 	(void) ctl_printf(client, "210 :%s\r\n", buf);
 
 	buf[0] = 0;
 	if (job->job_fail_action & ST_EXIT_RESTART)
-		strlcat(buf, "restart", sizeof(buf));
+		(void) strlcat(buf, "restart", sizeof(buf));
 	else if (job->job_fail_action & ST_EXIT_DISABLE)
-		strlcat(buf, "disable", sizeof(buf));
+		(void) strlcat(buf, "disable", sizeof(buf));
 	if (job->job_fail_action & ST_EXIT_MAIL)
-		strlcat(buf, ",mail", sizeof(buf));
+		(void) strlcat(buf, ",mail", sizeof(buf));
 	(void) ctl_printf(client, "211 :%s\r\n", buf);
 
 	buf[0] = 0;
 	if (job->job_crash_action & ST_EXIT_RESTART)
-		strlcat(buf, "restart", sizeof(buf));
+		(void) strlcat(buf, "restart", sizeof(buf));
 	else if (job->job_crash_action & ST_EXIT_DISABLE)
-		strlcat(buf, "disable", sizeof(buf));
+		(void) strlcat(buf, "disable", sizeof(buf));
 	if (job->job_crash_action & ST_EXIT_MAIL)
-		strlcat(buf, ",mail", sizeof(buf));
+		(void) strlcat(buf, ",mail", sizeof(buf));
 	(void) ctl_printf(client, "212 :%s\r\n", buf);
 
 	if (job->job_project)
@@ -1063,7 +1062,6 @@ rctl_qty_t	 value;
 		goto err;
 	}
 
-	/*LINTED sign extension*/
 	if ((value = job_get_rctl(job, ctl)) == (rctl_qty_t) -1)
 		(void) ctl_printf(client, "500 Resource control \"%s\" not set.\r\n", ctl);
 	else
@@ -1115,7 +1113,6 @@ u_longlong_t	 value = 0;
 		goto err;
 	}
 
-	/*LINTED sign extension*/
 	if ((value = job_set_rctl(job, ctl, value)) == -1)
 		(void) ctl_printf(client, "500 Resource control \"%s\" not set.\r\n", ctl);
 	else
@@ -1195,7 +1192,6 @@ char	*opt, *value;
 		int	 njobs;
 		char	*endp;
 
-			/*LINTED*/
 			njobs = strtol(value, &endp, 10);
 			if (endp != (value + strlen(value)) || njobs < 0) {
 				(void) ctl_printf(client, "500 Invalid format.\r\n");

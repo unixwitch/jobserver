@@ -412,7 +412,6 @@ char const *args[] = {
 	NULL
 };
 int	fds[2];
-pid_t	pid;
 
 	args[4] = recip;
 
@@ -421,33 +420,34 @@ pid_t	pid;
 		return -1;
 	}
 
-	switch (pid = fork()) {
+	switch (fork()) {
 	case 0:
 		if (dup2(fds[0], 0) == -1) {
 			logm(LOG_ERR, "send_mail: dup2: %s", strerror(errno));
 			_exit(1);
 		}
 
-		close(fds[0]);
-		close(fds[1]);
+		(void) close(fds[0]);
+		(void) close(fds[1]);
 		
 		/*
 		 * This does not break const correctness, since execv() is only
 		 * missing the appropriate 'const' qualifier for historical
 		 * reasons.
 		 */
-		execv("/usr/lib/sendmail", (char **) args);
+		(void) execv("/usr/lib/sendmail", (char **) args);
 		logm(LOG_ERR, "send_mail: execv: %s", strerror(errno));
 		_exit(1);
+		/*FALLTHROUGH*/
 	
 	case -1:
 		logm(LOG_ERR, "send_mail: fork: %s", strerror(errno));
 		return -1;
 
 	default:
-		close(fds[0]);
-		write(fds[1], msg, strlen(msg));
-		close(fds[1]);
+		(void) close(fds[0]);
+		(void) write(fds[1], msg, strlen(msg));
+		(void) close(fds[1]);
 	}
 
 	/* We're ignoring SIGCHLD, so no need to wait */

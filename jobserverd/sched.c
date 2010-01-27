@@ -602,7 +602,7 @@ char		 timestr[128];
 		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		(void) snprintf(msg, sizeof(msg),
 			"To: %s\n"
-			"Subject: Job \"%s\" exited\n"
+			"Subject: \"%s\" exited\n"
 			"Date: %s"
 			"\n"
 			"Your job \"%s\" on the host \"%s\" has exited successfully.\n",
@@ -664,7 +664,7 @@ char		 timestr[128];
 		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		(void) snprintf(msg, sizeof(msg),
 			"To: %s\n"
-			"Subject: Job \"%s\" failed\n"
+			"Subject: \"%s\" failed\n"
 			"Date: %s"
 			"\n"
 			"Your job \"%s\" on the host \"%s\" has failed.\n",
@@ -717,7 +717,7 @@ char		 timestr[128];
 		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
 		(void) snprintf(msg, sizeof(msg),
 			"To: %s\n"
-			"Subject: Job \"%s\" crashed\n"
+			"Subject: \"%s\" crashed\n"
 			"Date: %s"
 			"\n"
 			"Your job \"%s\" on the host \"%s\" has crashed.\n",

@@ -77,12 +77,13 @@ int
 main(argc, argv)
 	char **argv;
 {
+struct rlimit	nofile;
+
 	openlog(argv[0], LOG_PID, LOG_DAEMON);
 
 	/*
 	 * We need quite a few fds.
 	 */
-struct rlimit	nofile;
 	if (getrlimit(RLIMIT_NOFILE, &nofile) == -1) {
 		logm(LOG_ERR, "getrlimit(RLIMIT_NOFILE): %s", strerror(errno));
 		return 1;

@@ -590,6 +590,9 @@ char		 timestr[128];
 		return;
 	sjob->sjob_fatal = 1;
 
+	if (sjob->sjob_state == SJOB_STOPPING)
+		return;
+
 	if (gethostname(hostname, sizeof(hostname)) == -1)
 		(void) strlcpy(hostname, "unknown", sizeof(hostname));
 	else
@@ -652,6 +655,9 @@ char		 timestr[128];
 		return;
 	sjob->sjob_fatal = 1;
 
+	if (sjob->sjob_state == SJOB_STOPPING)
+		return;
+
 	if (gethostname(hostname, sizeof(hostname)) == -1)
 		(void) strlcpy(hostname, "unknown", sizeof(hostname));
 	else
@@ -704,6 +710,9 @@ char		 timestr[128];
 	if (sjob->sjob_fatal)
 		return;
 	sjob->sjob_fatal = 1;
+
+	if (sjob->sjob_state == SJOB_STOPPING)
+		return;
 
 	if (gethostname(hostname, sizeof(hostname)) == -1)
 		(void) strlcpy(hostname, "unknown", sizeof(hostname));

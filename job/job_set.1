@@ -58,6 +58,36 @@ The name of the job.
 The project the job will run in.
 .RE
 
+.ne 2
+.mk
+.na
+\fBexit\fR
+.br
+\fBfail\fR
+.br
+\fBcrash\fR
+.ad
+.RS 13n
+.rt
+The exit, fail and crash actions for the job.
+.RE
+
+.SH EXIT ACTIONS
+
+.LP
+When a job exits, its exit action is invoked.  There are three separate exit
+actions: \fBexit\fR, which is used when the job exits with return code 0,
+\fBfail\fR, which is used when the job exits with a non-zero return code,
+and \fBcrash\fR, which is used when a process in the job receives a fatal
+signal.
+
+.LP
+The exit action describes what the jobserver should do when the exit event
+occurs.  The default for all actions is \fBdisable,mail\fR, which means the
+job will be disabled, and mail will be sent to the job's owner.  Valid actions
+are \fBdisable\fR and \fBrestart\fR, which causes the job to restart.  The
+\fBmail\fR modifier can be used with either action.
+
 .SH EXAMPLES
 .LP
 \fBExample 1: Set a job's project to 'batch'\fR

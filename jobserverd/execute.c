@@ -34,6 +34,7 @@
 
 static int fork_logwriter(char const *, size_t, int);
 static int load_environment(char ***, int, char const *);
+static char *logfmt(char const *fmt, job_t *);
 
 /*
  * Set standard environment, and load user-defined environment from
@@ -172,6 +173,184 @@ char		*n, *m;
 	return n;
 }
 
+static void
+start_job(job, cmd)
+	job_t		*job;
+	char const	*cmd;
+{
+char		 *envfile;
+char		**env;
+int	 	  i = 0;
+struct passwd	 *pwd;
+int		  devnullfd;
+struct project	  proj;
+char		  nssbuf[PROJECT_BUFSZ];
+int		  logfd;
+char		  tbuf[64];
+struct tm	 *tm;
+int		  lwfd;
+char		 *logfile;
+char		 *s, *p;
+
+	if ((logfile = logfmt("%h/.job/%f.log", job)) == NULL) {
+		logm(LOG_ERR, "start_job: could not create log format");
+		_exit(1);
+	}
+
+	if ((pwd = getpwnam(job->job_username)) == NULL) {
+		logm(LOG_ERR, "start_job: user %s doesn't exist", job->job_username);
+		_exit(1);
+	}
+
+	/*
+	 * Ideally, all of this output would go to the logfile, but we can't
+	 * open the logfile as root.
+	 */
+	if (getdefaultproj(pwd->pw_name, &proj, nssbuf, sizeof(nssbuf)) == NULL) {
+		logm(LOG_ERR, "start_job: getdefaultproj: %s", strerror(errno));
+		_exit(1);
+	}
+
+	if (setproject(proj.pj_name, pwd->pw_name, TASK_NORMAL) != 0) {
+		logm(LOG_ERR, "start_job: setproject: %s", strerror(errno));
+		_exit(1);
+	}
+
+	if (job->job_project) {
+		if (inproj(pwd->pw_name, job->job_project, nssbuf, sizeof(nssbuf))) {
+			/*
+			 * Don't error out here... it might be some kind of transient
+			 * issue.
+			 */
+			if (setproject(job->job_project, pwd->pw_name, TASK_NORMAL) != 0)
+				logm(LOG_ERR, "start_job: setproject: %s", strerror(errno));
+		} else {
+			logm(LOG_ERR, "Warning: user \"%s\" is not a member of project \"%s\"",
+					pwd->pw_name, job->job_project);
+		}
+	}
+				
+	if (initgroups(pwd->pw_name, pwd->pw_gid) == -1) {
+		logm(LOG_ERR, "start_job: initgroups: %s", strerror(errno));
+		_exit(1);
+	}
+
+	if (setgid(pwd->pw_gid) == -1) {
+		logm(LOG_ERR, "start_job: setgid: %s", strerror(errno));
+		_exit(1);
+	}
+
+	if (setuid(pwd->pw_uid) == -1) {
+		logm(LOG_ERR, "start_job: setuid: %s", strerror(errno));
+		_exit(1);
+	}
+
+	if ((devnullfd = open("/dev/null", O_RDONLY)) == -1) {
+		logm(LOG_ERR, "start_job: /dev/null: %s", strerror(errno));
+		_exit(1);
+	}
+
+	/*
+	 * This is like mkdir -p.
+	 */
+	s = p = logfile + 1;
+	if (*logfile == '/') {
+		if (chdir("/") == -1) {
+			logm(LOG_ERR, "chdir(/): %s", strerror(errno));
+			_exit(1);
+		}
+	} else {
+		if (chdir(pwd->pw_name) == -1) {
+			logm(LOG_ERR, "chdir(%s): %s", pwd->pw_name, strerror(errno));
+			_exit(1);
+		}
+	}
+
+	while ((s = index(p, '/')) != NULL) {
+		if (index(s + 1, '/') == NULL)
+			break;
+
+		*s = 0;
+		if (mkdir(p, 0700) == -1 && errno != EEXIST) {
+			logm(LOG_ERR, "mkdir(%s): %s", p, strerror(errno));
+			_exit(1);
+		}
+
+		if (chdir(p) == -1) {
+			logm(LOG_ERR, "chdir(%s): %s", p, strerror(errno));
+			_exit(1);
+		}
+
+		*s++ = '/';
+		p = s;
+	}
+
+	/*LINTED*/
+	if ((logfd = open(logfile, O_RDWR | O_CREAT | O_APPEND, 0600)) == -1) {
+		logm(LOG_ERR, "fork_execute: %s: %s", logfile, strerror(errno));
+		_exit(1);
+	}
+
+	if (dup2(devnullfd, STDIN_FILENO) == -1 ||
+	    dup2(logfd, STDOUT_FILENO) == -1 ||
+	    dup2(logfd, STDERR_FILENO) == -1) {
+		_exit(1);
+	}
+
+	(void) close(logfd);
+	(void) close(devnullfd);	
+
+	if (chdir(pwd->pw_dir) == -1) {
+		(void) printf("[ chdir(%s): %s ]\n", pwd->pw_dir, strerror(errno));
+		(void) printf("[ Job start aborted. ]\n");
+		_exit(1);
+	}
+
+	if ((env = calloc(5, sizeof(char **))) == NULL) {
+		(void) printf("[ Out of memory. ]\n");
+		(void) printf("[ Job start aborted. ]\n");
+		_exit(1);
+	}
+
+	set_rctls(job);
+
+	(void) asprintf(&env[i++], "HOME=%s", pwd->pw_dir);
+	(void) asprintf(&env[i++], "LOGNAME=%s", pwd->pw_name);
+	(void) asprintf(&env[i++], "USER=%s", pwd->pw_name);
+	(void) asprintf(&env[i++], "SHELL=%s", pwd->pw_shell);
+
+	env[i] = NULL;
+
+	(void) asprintf(&envfile, "%s/.environment", pwd->pw_dir);
+	(void) load_environment(&env, i, envfile);
+
+	if ((lwfd = fork_logwriter(logfile, 1024 * 1024, 5)) == -1) {
+		(void) printf("[ Cannot start logwriter: %s. ]\n", strerror(errno));
+		(void) printf("[ Job start aborted. ]\n");
+		_exit(1);
+	}
+
+	if (dup2(lwfd, STDOUT_FILENO) == -1 ||
+	    dup2(lwfd, STDERR_FILENO) == -1) {
+		_exit(1);
+	}
+
+	(void) close(lwfd);
+	tm = localtime(&current_time);
+	(void) strftime(tbuf, sizeof tbuf, "%Y-%m-%d %H:%M:%S", tm);
+
+	(void) printf("[ %s: Executing command \"%s\" ]\n",
+			tbuf, cmd);
+	(void) fflush(stdout);
+
+	(void) execle("/usr/xpg4/bin/sh", "sh", "-c", cmd, NULL, env);
+
+	(void) printf("[ Failed: %s ]\n", strerror(errno));
+	(void) fflush(stdout);
+
+	_exit(1);
+}
+
 /*
  * Execute a program as a specific user.
  */
@@ -180,188 +359,25 @@ fork_execute(job, cmd)
 	job_t		*job;
 	char const	*cmd;
 {
-struct passwd	*pwd;
-char		*logdir = NULL, *logfile = NULL;
-pid_t		 pid;
-int		 devnullfd;
-struct project	 proj;
-char		 nssbuf[PROJECT_BUFSZ];
-int		 logfd;
-char		 tbuf[64];
-time_t		 now;
-struct tm	*tm;
-int		 lwfd;
-char		*logname;
-
+pid_t	pid;
 	assert(cmd);
-
-	if ((pwd = getpwnam(job->job_username)) == NULL) {
-		logm(LOG_ERR, "fork_execute: user %s doesn't exist", job->job_username);
-		goto err;
-	}
-
-	if (asprintf(&logdir, "%s/.job", pwd->pw_dir) == -1) {
-		logm(LOG_ERR, "fork_execute: out of memory");
-		goto err;
-	}
-
-	if ((logname = log_name(job->job_fmri)) == NULL) {
-		logm(LOG_ERR, "fork_execute: cannot form logfile name");
-		goto err;
-	}
-
-	if (asprintf(&logfile, "%s/job_%s.log", logdir, logname) == -1) {
-		logm(LOG_ERR, "fork_execute: out of memory");
-		goto err;
-	}
-
-	(void) fflush(stdout);
 
 	switch (pid = fork()) {
 	case -1:
 		logm(LOG_ERR, "fork failed: %s", strerror(errno));
 		goto err;
 
-	case 0: {
-	char	 *envfile;
-	char	**env;
-	int	  i = 0;
-
-		/*
-		 * Ideally, all of this output would go to the logfile, but we can't
-		 * open the logfile as root.
-		 */
-		if (getdefaultproj(pwd->pw_name, &proj, nssbuf, sizeof(nssbuf)) == NULL) {
-			logm(LOG_ERR, "fork_execute: getdefaultproj: %s", strerror(errno));
-			exit(1);
-		}
-
-		if (setproject(proj.pj_name, pwd->pw_name, TASK_NORMAL) != 0) {
-			logm(LOG_ERR, "fork_execute: setproject: %s", strerror(errno));
-			exit(1);
-		}
-
-		if (job->job_project) {
-			if (inproj(pwd->pw_name, job->job_project, nssbuf, sizeof(nssbuf))) {
-				/*
-				 * Don't error out here... it might be some kind of transient
-				 * issue.
-				 */
-				if (setproject(job->job_project, pwd->pw_name, TASK_NORMAL) != 0)
-					logm(LOG_ERR, "fork_execute: setproject: %s", strerror(errno));
-			} else {
-				logm(LOG_ERR, "Warning: user \"%s\" is not a member of project \"%s\"",
-						pwd->pw_name, job->job_project);
-			}
-		}
-					
-		if (initgroups(pwd->pw_name, pwd->pw_gid) == -1) {
-			logm(LOG_ERR, "fork_execute: initgroups: %s", strerror(errno));
-			exit(1);
-		}
-
-		if (setgid(pwd->pw_gid) == -1) {
-			logm(LOG_ERR, "fork_execute: setgid: %s", strerror(errno));
-			exit(1);
-		}
-
-		if (setuid(pwd->pw_uid) == -1) {
-			logm(LOG_ERR, "fork_execute: setuid: %s", strerror(errno));
-			exit(1);
-		}
-
-		if ((devnullfd = open("/dev/null", O_RDONLY)) == -1) {
-			logm(LOG_ERR, "fork_execute: /dev/null: %s", strerror(errno));
-			exit(1);
-		}
-
-		if (mkdir(logdir, 0700) == -1 && errno != EEXIST) {
-			logm(LOG_ERR, "fork_execute: mkdir(%s): %s", logdir, strerror(errno));
-			exit(1);
-		}
-
-		/*LINTED*/
-		if ((logfd = open(logfile, O_RDWR | O_CREAT | O_APPEND, 0600)) == -1) {
-			logm(LOG_ERR, "fork_execute: %s: %s", logdir, strerror(errno));
-			exit(1);
-			goto err;
-		}
-
-		if (dup2(devnullfd, STDIN_FILENO) == -1 ||
-		    dup2(logfd, STDOUT_FILENO) == -1 ||
-		    dup2(logfd, STDERR_FILENO) == -1) {
-			exit(1);
-		}
-
-		(void) close(logfd);
-		(void) close(devnullfd);	
-
-		if (chdir(pwd->pw_dir) == -1) {
-			(void) printf("[ chdir(%s): %s ]\n", pwd->pw_dir, strerror(errno));
-			(void) printf("[ Job start aborted. ]\n");
-			exit(1);
-		}
-
-		if ((env = calloc(5, sizeof(char **))) == NULL) {
-			(void) printf("[ Out of memory. ]\n");
-			(void) printf("[ Job start aborted. ]\n");
-			exit(1);
-		}
-
-		set_rctls(job);
-
-		(void) asprintf(&env[i++], "HOME=%s", pwd->pw_dir);
-		(void) asprintf(&env[i++], "LOGNAME=%s", pwd->pw_name);
-		(void) asprintf(&env[i++], "USER=%s", pwd->pw_name);
-		(void) asprintf(&env[i++], "SHELL=%s", pwd->pw_shell);
-
-		env[i] = NULL;
-
-		(void) asprintf(&envfile, "%s/.environment", pwd->pw_dir);
-		(void) load_environment(&env, i, envfile);
-
-		if ((lwfd = fork_logwriter(logfile, 1024 * 1024, 5)) == -1) {
-			(void) printf("[ Cannot start logwriter: %s. ]\n", strerror(errno));
-			(void) printf("[ Job start aborted. ]\n");
-			exit(1);
-		}
-
-		if (dup2(lwfd, STDOUT_FILENO) == -1 ||
-		    dup2(lwfd, STDERR_FILENO) == -1) {
-			exit(1);
-		}
-
-		(void) close(lwfd);
-		(void) time(&now);
-		tm = localtime(&now);
-		(void) strftime(tbuf, sizeof tbuf, "%Y-%m-%d %H:%M:%S", tm);
-
-		(void) printf("[ %s: Executing command \"%s\" ]\n",
-				tbuf, cmd);
-		(void) fflush(stdout);
-
-		(void) execle("/usr/xpg4/bin/sh", "sh", "-c", cmd, NULL, env);
-
-		(void) time(&now);
-		tm = localtime(&now);
-		(void) strftime(tbuf, sizeof tbuf, "%Y-%m-%d %H:%M:%S", tm);
-
-		(void) printf("[ %s: Failed: %s ]\n", tbuf, strerror(errno));
-		exit(1);
-	}
+	case 0:
+		/* Doesn't return */
+		start_job(job, cmd);
 
 	default:
 		break;
 	}
 
-	free(logfile);
-	free(logdir);
-
 	return pid;
 
 err:
-	free(logfile);
-	free(logdir);
 	return -1;
 }
 
@@ -453,3 +469,74 @@ int	fds[2];
 	/* We're ignoring SIGCHLD, so no need to wait */
 	return 0;
 }
+
+static char *
+logfmt(fmt, job)
+	char const	*fmt;
+	job_t		*job;
+{
+static char	 fl[1024];
+char const	*p = fmt;
+char		*f = fl;
+size_t		 nleft = sizeof (fl);
+struct passwd	*pwd;
+char		 dbuf[128], tbuf[128];
+struct tm	*tm;
+char		*fmri = log_name(job->job_fmri);
+
+	tm = gmtime(&current_time);
+	(void) strftime(tbuf, sizeof (tbuf), "%Y-%m-%d_%H:%M:%S", tm);
+	(void) strftime(dbuf, sizeof (dbuf), "%Y-%m-%d", tm);
+	if ((pwd = getpwnam(job->job_username)) == NULL)
+		return NULL;
+
+	bzero(fl, sizeof(fl));
+
+	while (*p) {
+		if (*p != '%') {
+			if (nleft)
+				*f++ = *p;
+			nleft--;
+			p++;
+			continue;
+		}
+
+		p++;
+		switch (*p) {
+		case '%':
+			if (nleft)
+				*f++ = '%';
+			nleft--;
+			break;
+
+		case 'h':
+			(void) strlcat(fl, pwd->pw_dir, sizeof (fl));
+			f = fl + strlen(fl);
+			nleft = sizeof(fl) - strlen(fl);
+			break;
+
+		case 'f':
+			(void) strlcat(fl, fmri, sizeof (fl));
+			f = fl + strlen(fl);
+			nleft = sizeof(fl) - strlen(fl);
+			break;
+
+		case 't':
+			(void) strlcat(fl, tbuf, sizeof (fl));
+			f = fl + strlen(fl);
+			nleft = sizeof(fl) - strlen(fl);
+			break;
+
+		case 'd':
+			(void) strlcat(fl, dbuf, sizeof(fl));
+			f = fl + strlen(fl);
+			nleft = sizeof(fl) - strlen(fl);
+			break;
+		}
+
+		p++;
+	}
+
+	return fl;
+}
+

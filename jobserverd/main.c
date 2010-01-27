@@ -77,6 +77,8 @@ int
 main(argc, argv)
 	char **argv;
 {
+	openlog(argv[0], LOG_PID, LOG_DAEMON);
+
 	/*
 	 * We need quite a few fds.
 	 */

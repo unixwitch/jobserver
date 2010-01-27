@@ -1,5 +1,6 @@
 CC		= cc
 LINT		= lint
+CSTYLE		= /opt/onbld/bin/cstyle
 CPPFLAGS	= -DPREFIX=\"/opt/jobserver\"	\
 		  -D_XOPEN_SOURCE=500		\
 		  -D__EXTENSIONS__		\
@@ -7,11 +8,11 @@ CPPFLAGS	= -DPREFIX=\"/opt/jobserver\"	\
 		  -I/opt/ts/include/db-4.7
 CFLAGS		= -xO0 -g -xc99=%none
 LDFLAGS		= -L/opt/ts/lib -R/opt/ts/lib
-#LINTFLAGS	= -a -s -m -u -errchk=%all -Ncheck=%all -Nlevel=4 -errtags=yes -errsecurity=core
-LINTFLAGS	= -asxmu -errchk -errtags=yes -Xc99=none -errsecurity=core
 LIBS		= -lnsl -lrt -lproject -lcontract -lnvpair -lcmd -lsecdb -ldb-4.7
-
-OBJS	= main.o fd.o ctl.o buffer.o state.o sched.o event.o execute.o
+#LINTFLAGS	= -a -s -m -u -errchk=%all -Ncheck=%all -Nlevel=4 -errtags=yes -errsecurity=core
+LINTFLAGS	= -asxmu -errchk=%all,no%longptr64 -errtags=yes -Xc99=none -errsecurity=core -erroff=E_EQUALITY_NOT_ASSIGNMENT
+CSTYLEFLAGS	= -cpP
+OBJS	= main.o fd.o ctl.o buffer.o state.o sched.o event.o execute.o ct.o
 SRCS	= $(OBJS:.o=.c)
 PROG	= jobserverd
 
@@ -29,6 +30,9 @@ buftest: buffer.c
 
 lint:
 	$(LINT) $(CPPFLAGS) $(LINTFLAGS) $(SRCS)
+
+style:
+	$(CSTYLE) $(SRCS)
 
 clean:
 	rm -f $(OBJS) $(PROG)

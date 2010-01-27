@@ -586,9 +586,7 @@ char const	*state, *rstate;
 	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_VIEW))
 		return 0;
 
-	if (job->job_flags & JOB_MAINTENANCE)
-		state = "maintenance";
-	else if (job->job_flags & JOB_SCHEDULED) {
+	if (job->job_flags & JOB_SCHEDULED) {
 		if (job->job_flags & JOB_ENABLED)
 			state = "scheduled/enabled";
 		else
@@ -598,20 +596,24 @@ char const	*state, *rstate;
 	else
 		state = "disabled";
 
-	switch (sched_get_state(job)) {
-	case SJOB_RUNNING:
-		rstate = "running";
-		break;
-	case SJOB_STOPPING:
-		rstate = "stopping";
-		break;
-	case SJOB_STOPPED:
-		rstate = "stopped";
-		break;
-	default:
-	case SJOB_UNKNOWN:
-		rstate = "unknown";
-		break;
+	if (job->job_flags & JOB_MAINTENANCE)
+		rstate = "maintenance";
+	else {
+		switch (sched_get_state(job)) {
+		case SJOB_RUNNING:
+			rstate = "running";
+			break;
+		case SJOB_STOPPING:
+			rstate = "stopping";
+			break;
+		case SJOB_STOPPED:
+			rstate = "stopped";
+			break;
+		default:
+		case SJOB_UNKNOWN:
+			rstate = "unknown";
+			break;
+		}
 	}
 
 	(void) ctl_printf(client, "201 %s %s %s\r\n",
@@ -770,6 +772,11 @@ job_t		*job = NULL;
 		goto err;
 	}
 
+	if (job->job_flags & JOB_ENABLED) {
+		(void) ctl_printf(client, "500 Cannot schedule an enabled job.\r\n");
+		goto err;
+	}
+
 	if (job_set_schedule(job, time) == -1)
 		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
 	else
@@ -806,9 +813,7 @@ char		 buf[64];
 
 	(void) ctl_printf(client, "200 Job status follows.\r\n");
 
-	if (job->job_flags & JOB_MAINTENANCE)
-		state = "maintenance";
-	else if (job->job_flags & JOB_SCHEDULED) {
+	if (job->job_flags & JOB_SCHEDULED) {
 		if (job->job_flags & JOB_ENABLED)
 			state = "scheduled/enabled";
 		else
@@ -818,20 +823,24 @@ char		 buf[64];
 	else
 		state = "disabled";
 
-	switch (sched_get_state(job)) {
-	case SJOB_RUNNING:
-		rstate = "running";
-		break;
-	case SJOB_STOPPING:
-		rstate = "stopping";
-		break;
-	case SJOB_STOPPED:
-		rstate = "stopped";
-		break;
-	default:
-	case SJOB_UNKNOWN:
-		rstate = "unknown";
-		break;
+	if (job->job_flags & JOB_MAINTENANCE)
+		rstate = "maintenance";
+	else {
+		switch (sched_get_state(job)) {
+		case SJOB_RUNNING:
+			rstate = "running";
+			break;
+		case SJOB_STOPPING:
+			rstate = "stopping";
+			break;
+		case SJOB_STOPPED:
+			rstate = "stopped";
+			break;
+		default:
+		case SJOB_UNKNOWN:
+			rstate = "unknown";
+			break;
+		}
 	}
 
 	(void) ctl_printf(client, "201 :%s\r\n", job->job_fmri);

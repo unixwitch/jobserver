@@ -459,16 +459,16 @@ int nents = 0;
 			for (i = 0; i < nents; ++i) {
 			char const	*scol, *rcol;
 
-				if (!strcmp(ents[i].state, "maintenance"))
-					scol = red;
-				else if (!strcmp(ents[i].state, "enabled"))
+				if (!strcmp(ents[i].state, "enabled"))
 					scol = green;
-				else if (!strcmp(ents[i].state, "scheduled"))
+				else if (!strcmp(ents[i].state, "scheduled/enabled"))
 					scol = blue;
 				else
 					scol = "";
 
-				if (!strcmp(ents[i].rstate, "running"))
+				if (!strcmp(ents[i].rstate, "maintenance"))
+					rcol = red;
+				else if (!strcmp(ents[i].rstate, "running"))
 					rcol = green;
 				else
 					rcol = "";

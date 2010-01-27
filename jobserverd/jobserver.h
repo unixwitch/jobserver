@@ -1,13 +1,10 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef JOBSERVER_H
-#define JOBSERVER_H
+#define	JOBSERVER_H
 
 #include	<syslog.h>
 #include	<stdarg.h>
@@ -27,15 +24,15 @@ void *xrecalloc(void *ptr, size_t o, size_t n, size_t size);
 int vasprintf(char **s, char const *fmt, va_list ap);
 int asprintf(char **s, char const *fmt, ...);
 
-#define min(x,y) ((x) < (y) ? (x) : (y))
+#define	min(x, y) ((x) < (y) ? (x) : (y))
 
-#define VERSION "E2.0-4_ALPHA"
+#define	VERSION "E2.0-4_ALPHA"
 
 #ifndef PREFIX
-# error prefix not defined
+#error prefix not defined
 #endif
 
-#define LOGWRITER PREFIX "/lib/logwriter"
+#define	LOGWRITER PREFIX "/lib/logwriter"
 
 /*
  * What the time was at the top of the event loop.

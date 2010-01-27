@@ -1,14 +1,6 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
- */
-
-/*
- * Handles starting the job process, including setting up the initial execution
- * environment.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include	<sys/task.h>
@@ -52,18 +44,18 @@ char	*path;
 char	**np = *env;
 
 	if ((inf = fopen(file, "r")) == NULL)
-		return -1;
+		return (-1);
 
 	if (defopen(DEFLT "/login") == -1 || (path = defread("PATH=")) == NULL)
 		path = "/usr/bin:";
 
-	if ((np = xrecalloc(np, i, i + 1, sizeof(char **))) == NULL)
-		return -1;
+	if ((np = xrecalloc(np, i, i + 1, sizeof (char **))) == NULL)
+		return (-1);
 
 	if (asprintf(&np[i++], "PATH=%s", path) == -1)
-		return -1;
+		return (-1);
 
-	while (fgets(line, sizeof line, inf) != NULL) {
+	while (fgets(line, sizeof (line), inf) != NULL) {
 	char	*k = line;
 
 		while (*k == ' ')
@@ -72,15 +64,15 @@ char	**np = *env;
 		if (!*k || *k == '#')
 			continue;
 
-		if ((np = xrecalloc(np, i, i + 2, sizeof(char *))) == NULL)
-			return -1;
+		if ((np = xrecalloc(np, i, i + 2, sizeof (char *))) == NULL)
+			return (-1);
 		np[i++] = strdup(k);
 		np[i] = NULL;
 		*env = np;
 	}
 
 	(void) fclose(inf);
-	return 0;
+	return (0);
 }
 
 /*
@@ -104,11 +96,12 @@ rctlblk_t	*blk = alloca(rctlblk_size()), *blk2 = alloca(rctlblk_size());
 		 * for deny action.
 		 */
 
-		(void) snprintf(rname, sizeof(rname), "process.%s", r->jr_name);
+		(void) snprintf(rname, sizeof (rname),
+				"process.%s", r->jr_name);
 
 		for (i = getrctl(rname, NULL, blk, RCTL_FIRST);
-		     i != -1;
-		     i = getrctl(rname, blk, blk, RCTL_NEXT))
+			i != -1;
+			i = getrctl(rname, blk, blk, RCTL_NEXT))
 		{
 			if (rctlblk_get_privilege(blk) == RCPRIV_BASIC)
 				break;
@@ -119,14 +112,16 @@ rctlblk_t	*blk = alloca(rctlblk_size()), *blk2 = alloca(rctlblk_size());
 			rctlblk_set_value(blk, r->jr_value);
 
 			if (setrctl(rname, NULL, blk, RCTL_INSERT) == -1)
-				(void) printf("[ setrctl(%s, %llu) failed: %s ]\n", 
-						rname, (u_longlong_t) r->jr_name,
+				(void) printf("[ setrctl(%s, %llu) "
+						"failed: %s ]\n",
+						rname,
+						(u_longlong_t)r->jr_name,
 						strerror(errno));
 			continue;
 		}
 
 		if (i == -1) {
-			(void) printf("[ getrctl(%s) failed: %s ]\n", 
+			(void) printf("[ getrctl(%s) failed: %s ]\n",
 					rname, strerror(errno));
 			continue;
 		}
@@ -134,8 +129,8 @@ rctlblk_t	*blk = alloca(rctlblk_size()), *blk2 = alloca(rctlblk_size());
 		bcopy(blk, blk2, rctlblk_size());
 		rctlblk_set_value(blk2, r->jr_value);
 		if (setrctl(rname, blk, blk2, RCTL_REPLACE) == -1) {
-			(void) printf("[ setrctl(%s, %llu) failed: %s ]\n", 
-					rname, (u_longlong_t) r->jr_name,
+			(void) printf("[ setrctl(%s, %llu) failed: %s ]\n",
+					rname, (u_longlong_t)r->jr_name,
 					strerror(errno));
 			continue;
 		}
@@ -158,19 +153,19 @@ char		*n, *m;
 	/* Skip the username */
 	if ((p = index(p, '/')) == NULL) {
 		logm(LOG_ERR, "log_name: mal-formed FMRI");
-		return NULL;
+		return (NULL);
 	}
 
 	if ((n = strdup(p + 1)) == NULL) {
 		logm(LOG_ERR, "log_name: out of memory");
-		return NULL;
+		return (NULL);
 	}
-	
+
 	for (m = n; *m; ++m)
 		if (!isalnum(*m) && !index("-_", *m))
 			*m = '_';
 
-	return n;
+	return (n);
 }
 
 static void
@@ -180,7 +175,7 @@ start_job(job, cmd)
 {
 char		 *envfile;
 char		**env;
-int	 	  i = 0;
+int		  i = 0;
 struct passwd	 *pwd;
 int		  devnullfd;
 struct project	  proj;
@@ -198,7 +193,8 @@ char		 *s, *p;
 	}
 
 	if ((pwd = getpwnam(job->job_username)) == NULL) {
-		logm(LOG_ERR, "start_job: user %s doesn't exist", job->job_username);
+		logm(LOG_ERR, "start_job: user %s doesn't exist",
+				job->job_username);
 		_exit(1);
 	}
 
@@ -206,7 +202,8 @@ char		 *s, *p;
 	 * Ideally, all of this output would go to the logfile, but we can't
 	 * open the logfile as root.
 	 */
-	if (getdefaultproj(pwd->pw_name, &proj, nssbuf, sizeof(nssbuf)) == NULL) {
+	if (getdefaultproj(pwd->pw_name, &proj,
+				nssbuf, sizeof (nssbuf)) == NULL) {
 		logm(LOG_ERR, "start_job: getdefaultproj: %s", strerror(errno));
 		_exit(1);
 	}
@@ -217,19 +214,23 @@ char		 *s, *p;
 	}
 
 	if (job->job_project) {
-		if (inproj(pwd->pw_name, job->job_project, nssbuf, sizeof(nssbuf))) {
+		if (inproj(pwd->pw_name, job->job_project,
+				nssbuf, sizeof (nssbuf))) {
 			/*
-			 * Don't error out here... it might be some kind of transient
-			 * issue.
+			 * Don't error out here... it might be some kind of
+			 * transient issue.
 			 */
-			if (setproject(job->job_project, pwd->pw_name, TASK_NORMAL) != 0)
-				logm(LOG_ERR, "start_job: setproject: %s", strerror(errno));
+			if (setproject(job->job_project,
+					pwd->pw_name, TASK_NORMAL) != 0)
+				logm(LOG_ERR, "start_job: setproject: %s",
+						strerror(errno));
 		} else {
-			logm(LOG_ERR, "Warning: user \"%s\" is not a member of project \"%s\"",
+			logm(LOG_ERR, "Warning: user \"%s\" is not "
+					"a member of project \"%s\"",
 					pwd->pw_name, job->job_project);
 		}
 	}
-				
+
 	if (initgroups(pwd->pw_name, pwd->pw_gid) == -1) {
 		logm(LOG_ERR, "start_job: initgroups: %s", strerror(errno));
 		_exit(1);
@@ -261,7 +262,8 @@ char		 *s, *p;
 		}
 	} else {
 		if (chdir(pwd->pw_name) == -1) {
-			logm(LOG_ERR, "chdir(%s): %s", pwd->pw_name, strerror(errno));
+			logm(LOG_ERR, "chdir(%s): %s",
+					pwd->pw_name, strerror(errno));
 			_exit(1);
 		}
 	}
@@ -298,15 +300,16 @@ char		 *s, *p;
 	}
 
 	(void) close(logfd);
-	(void) close(devnullfd);	
+	(void) close(devnullfd);
 
 	if (chdir(pwd->pw_dir) == -1) {
-		(void) printf("[ chdir(%s): %s ]\n", pwd->pw_dir, strerror(errno));
+		(void) printf("[ chdir(%s): %s ]\n",
+				pwd->pw_dir, strerror(errno));
 		(void) printf("[ Job start aborted. ]\n");
 		_exit(1);
 	}
 
-	if ((env = calloc(5, sizeof(char **))) == NULL) {
+	if ((env = calloc(5, sizeof (char **))) == NULL) {
 		(void) printf("[ Out of memory. ]\n");
 		(void) printf("[ Job start aborted. ]\n");
 		_exit(1);
@@ -325,7 +328,8 @@ char		 *s, *p;
 	(void) load_environment(&env, i, envfile);
 
 	if ((lwfd = fork_logwriter(logfile, 1024 * 1024, 5)) == -1) {
-		(void) printf("[ Cannot start logwriter: %s. ]\n", strerror(errno));
+		(void) printf("[ Cannot start logwriter: %s. ]\n",
+				strerror(errno));
 		(void) printf("[ Job start aborted. ]\n");
 		_exit(1);
 	}
@@ -337,7 +341,7 @@ char		 *s, *p;
 
 	(void) close(lwfd);
 	tm = localtime(&current_time);
-	(void) strftime(tbuf, sizeof tbuf, "%Y-%m-%d %H:%M:%S", tm);
+	(void) strftime(tbuf, sizeof (tbuf), "%Y-%m-%d %H:%M:%S", tm);
 
 	(void) printf("[ %s: Executing command \"%s\" ]\n",
 			tbuf, cmd);
@@ -375,10 +379,10 @@ pid_t	pid;
 		break;
 	}
 
-	return pid;
+	return (pid);
 
 err:
-	return -1;
+	return (-1);
 }
 
 static int
@@ -390,16 +394,16 @@ fork_logwriter(file, maxsize, keep)
 char	maxs[32], keeps[16];
 int	fds[2];
 
-	(void) snprintf(maxs, sizeof maxs, "%lu", (unsigned long) maxsize);
-	(void) snprintf(keeps, sizeof keeps, "%d", keep);
+	(void) snprintf(maxs, sizeof (maxs), "%lu", (unsigned long) maxsize);
+	(void) snprintf(keeps, sizeof (keeps), "%d", keep);
 
 	if (pipe(fds) == -1)
-		return -1;
+		return (-1);
 
 	switch (fork()) {
 	case -1:
 		(void) close(fds[1]);
-		return -1;
+		return (-1);
 
 	case 0:
 		(void) close(fds[1]);
@@ -411,7 +415,7 @@ int	fds[2];
 
 	default:
 		(void) close(fds[0]);
-		return fds[1];
+		return (fds[1]);
 	}
 }
 
@@ -433,7 +437,7 @@ int	fds[2];
 
 	if (pipe(fds) == -1) {
 		logm(LOG_ERR, "send_mail: pipe: %s", strerror(errno));
-		return -1;
+		return (-1);
 	}
 
 	switch (fork()) {
@@ -445,20 +449,20 @@ int	fds[2];
 
 		(void) close(fds[0]);
 		(void) close(fds[1]);
-		
+
 		/*
 		 * This does not break const correctness, since execv() is only
 		 * missing the appropriate 'const' qualifier for historical
 		 * reasons.
 		 */
-		(void) execv("/usr/lib/sendmail", (char **) args);
+		(void) execv("/usr/lib/sendmail", (char **)args);
 		logm(LOG_ERR, "send_mail: execv: %s", strerror(errno));
 		_exit(1);
 		/*FALLTHROUGH*/
-	
+
 	case -1:
 		logm(LOG_ERR, "send_mail: fork: %s", strerror(errno));
-		return -1;
+		return (-1);
 
 	default:
 		(void) close(fds[0]);
@@ -467,7 +471,7 @@ int	fds[2];
 	}
 
 	/* We're ignoring SIGCHLD, so no need to wait */
-	return 0;
+	return (0);
 }
 
 static char *
@@ -488,9 +492,9 @@ char		*fmri = log_name(job->job_fmri);
 	(void) strftime(tbuf, sizeof (tbuf), "%Y-%m-%d_%H:%M:%S", tm);
 	(void) strftime(dbuf, sizeof (dbuf), "%Y-%m-%d", tm);
 	if ((pwd = getpwnam(job->job_username)) == NULL)
-		return NULL;
+		return (NULL);
 
-	bzero(fl, sizeof(fl));
+	bzero(fl, sizeof (fl));
 
 	while (*p) {
 		if (*p != '%') {
@@ -512,31 +516,30 @@ char		*fmri = log_name(job->job_fmri);
 		case 'h':
 			(void) strlcat(fl, pwd->pw_dir, sizeof (fl));
 			f = fl + strlen(fl);
-			nleft = sizeof(fl) - strlen(fl);
+			nleft = sizeof (fl) - strlen(fl);
 			break;
 
 		case 'f':
 			(void) strlcat(fl, fmri, sizeof (fl));
 			f = fl + strlen(fl);
-			nleft = sizeof(fl) - strlen(fl);
+			nleft = sizeof (fl) - strlen(fl);
 			break;
 
 		case 't':
 			(void) strlcat(fl, tbuf, sizeof (fl));
 			f = fl + strlen(fl);
-			nleft = sizeof(fl) - strlen(fl);
+			nleft = sizeof (fl) - strlen(fl);
 			break;
 
 		case 'd':
-			(void) strlcat(fl, dbuf, sizeof(fl));
+			(void) strlcat(fl, dbuf, sizeof (fl));
 			f = fl + strlen(fl);
-			nleft = sizeof(fl) - strlen(fl);
+			nleft = sizeof (fl) - strlen(fl);
 			break;
 		}
 
 		p++;
 	}
 
-	return fl;
+	return (fl);
 }
-

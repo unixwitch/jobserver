@@ -1,9 +1,6 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include	<stdlib.h>
@@ -15,40 +12,39 @@
 
 #include	"jobserver.h"
 #include	"event.h"
+#include	"queue.h"
 
 static timer_t ev_timer;
 
-typedef struct {
-	int 		 ev_repeat;
+typedef struct event {
+	ev_id_t		 ev_id;
+	int		 ev_repeat;
 	time_t		 ev_abstime;
 	time_t		 ev_freq;
 	ev_callback	 ev_func;
 	void		*ev_udata;
+	LIST_ENTRY(event) ev_entries;
 } event_t;
+static LIST_HEAD(events_list, event) events;
 
 static int port;
-static int nevs;
 static time_t ev_next_run;
-static event_t *events;
 static event_t *get_event(void);
 static void ev_recalc();
+static ev_id_t next_ev_id;
 
 int
-ev_init(prt, nev)
-	int	prt, nev;
+ev_init(prt)
+	int	prt;
 {
 struct sigevent	ev;
 port_notify_t	nfy;
 
 	port = prt;
-	nevs = nev;
-	if ((events = calloc(sizeof(*events), nevs)) == NULL) {
-		logm(LOG_ERR, "ev_init: out of memory");
-		return -1;
-	}
+	LIST_INIT(&events);
 
-	bzero(&ev, sizeof(ev));
-	bzero(&nfy, sizeof(nfy));
+	bzero(&ev, sizeof (ev));
+	bzero(&nfy, sizeof (nfy));
 
 	ev.sigev_notify = SIGEV_PORT;
 	ev.sigev_value.sival_ptr = &nfy;
@@ -56,21 +52,24 @@ port_notify_t	nfy;
 
 	if (timer_create(CLOCK_REALTIME, &ev, &ev_timer) == -1) {
 		logm(LOG_ERR, "ev_init: timer_create: %s", strerror(errno));
-		return -1;
+		return (-1);
 	}
 
-	return 0;
+	return (0);
 }
 
 static event_t *
 get_event()
 {
-int	i;
-	for (i = 0; i < nevs; ++i)
-		if (events[i].ev_func == NULL)
-			return &events[i];
-	logm(LOG_ERR, "get_event: out of event slots!");
-	return NULL;
+event_t	*ev;
+	if ((ev = calloc(1, sizeof (*ev))) == NULL) {
+		logm(LOG_ERR, "get_event: out of memory");
+		return (NULL);
+	}
+
+	LIST_INSERT_HEAD(&events, ev, ev_entries);
+	ev->ev_id = next_ev_id++;
+	return (ev);
 }
 
 ev_id_t
@@ -82,7 +81,7 @@ ev_add(when, func, udata)
 event_t	*ev;
 
 	if ((ev = get_event()) == NULL)
-		return -1;
+		return (-1);
 
 	ev->ev_func = func;
 	ev->ev_udata = udata;
@@ -91,7 +90,7 @@ event_t	*ev;
 	ev->ev_abstime = current_time + when;
 
 	ev_recalc();
-	return (ev_id_t) (ev - events);
+	return (ev->ev_id);
 }
 
 ev_id_t
@@ -103,7 +102,7 @@ ev_add_once(when, func, udata)
 event_t	*ev;
 
 	if ((ev = get_event()) == NULL)
-		return -1;
+		return (-1);
 
 	ev->ev_func = func;
 	ev->ev_udata = udata;
@@ -112,26 +111,28 @@ event_t	*ev;
 	ev->ev_abstime = current_time + when;
 
 	ev_recalc();
-	return (ev_id_t) (ev - events);
+	return (ev->ev_id);
 }
 
 static void
 ev_recalc()
 {
-int			i;
-struct itimerspec	ts;
+event_t	*ev;
+struct itimerspec ts;
 
 	ev_next_run = 0;
-	for (i = 0; i < nevs; ++i) {
-		if (events[i].ev_func && (ev_next_run == 0 || ev_next_run > events[i].ev_abstime))
-			ev_next_run = events[i].ev_abstime;
+	LIST_FOREACH(ev, &events, ev_entries) {
+		if ((ev_next_run == 0 ||
+		    ev_next_run > ev->ev_abstime))
+			ev_next_run = ev->ev_abstime;
 	}
 
-	bzero(&ts, sizeof(ts));
+	bzero(&ts, sizeof (ts));
 
 	if (ev_next_run == 0) {
 		if (timer_settime(ev_timer, 0, &ts, NULL) == -1)
-			logm(LOG_ERR, "ev_recalc: timer_settime: %s", strerror(errno));
+			logm(LOG_ERR, "ev_recalc: timer_settime: %s",
+			    strerror(errno));
 		return;
 	}
 
@@ -143,17 +144,17 @@ struct itimerspec	ts;
 
 /*ARGSUSED*/
 void
-ev_handle(ev)
-	port_event_t	*ev;
+ev_handle(event)
+	port_event_t	*event;
 {
-int	i;
-	for (i = 0; i < nevs; ++i) {
-		if (events[i].ev_abstime <= ev_next_run && events[i].ev_func) {
-			events[i].ev_func(i, events[i].ev_udata);
-			if (events[i].ev_func && events[i].ev_repeat) {
-				events[i].ev_abstime = ev_next_run + events[i].ev_freq;
+event_t	*ev;
+	LIST_FOREACH(ev, &events, ev_entries) {
+		if (ev->ev_abstime <= current_time) {
+			ev->ev_func(ev->ev_id, ev->ev_udata);
+			if (ev->ev_repeat) {
+				ev->ev_abstime = ev_next_run + ev->ev_freq;
 			} else {
-				events[i].ev_func = NULL;
+				LIST_REMOVE(ev, ev_entries);
 			}
 		}
 	}
@@ -162,10 +163,16 @@ int	i;
 }
 
 int
-ev_cancel(ev)
-	ev_id_t	ev;
+ev_cancel(evid)
+	ev_id_t	evid;
 {
-	events[ev].ev_func = NULL;
+event_t	*ev;
+	LIST_FOREACH(ev, &events, ev_entries) {
+		if (ev->ev_id == evid) {
+			LIST_REMOVE(ev, ev_entries);
+		}
+	}
+
 	ev_recalc();
-	return 0;
+	return (0);
 }

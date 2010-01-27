@@ -1,13 +1,10 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#ifndef CTL_H
-#define CTL_H
+#ifndef	CTL_H
+#define	CTL_H
 
 int ctl_init(void);
 

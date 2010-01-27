@@ -1,9 +1,6 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include	<sys/task.h>
@@ -61,40 +58,42 @@ time_t		 newboot, oldboot;
 	if ((ctfd = open64(CTFS_ROOT "/process/template", O_RDWR)) == -1) {
 		logm(LOG_ERR, "sched_init: cannot open process template: %s",
 				strerror(errno));
-		return -1;
+		return (-1);
 	}
 
 	if (fd_set_cloexec(ctfd, 1) == -1) {
-		logm(LOG_ERR, "sched_init: cannot set cloexec on process template fd: %s",
-				strerror(errno));
-		return -1;
+		logm(LOG_ERR, "sched_init: "
+			"cannot set cloexec on process template fd: %s",
+			strerror(errno));
+		return (-1);
 	}
 
 	if (ct_tmpl_get_informative(ctfd, &inform) == -1) {
 		logm(LOG_ERR, "sched_init: ct_tmpl_get_informative: %s",
 				strerror(errno));
-		return -1;
+		return (-1);
 	}
 
-	inform |= (CT_PR_EV_EMPTY | CT_PR_EV_EXIT | CT_PR_EV_CORE | CT_PR_EV_SIGNAL | CT_PR_EV_HWERR);
+	inform |= (CT_PR_EV_EMPTY | CT_PR_EV_EXIT | CT_PR_EV_CORE |
+			CT_PR_EV_SIGNAL | CT_PR_EV_HWERR);
 	if (ct_tmpl_set_informative(ctfd, inform) == -1) {
 		logm(LOG_ERR, "sched_init: ct_tmpl_set_informative: %s",
 				strerror(errno));
-		return -1;
+		return (-1);
 	}
 
 #if 1	/* Remove this when contract adoption is working  */
 	if (ct_pr_tmpl_set_param(ctfd, CT_PR_NOORPHAN) == -1) {
 		logm(LOG_ERR, "sched_init: cannot set CT_PR_NOORPHAN: %s",
 			strerror(errno));
-		return -1;
+		return (-1);
 	}
 #endif
 
 	if (ct_tmpl_activate(ctfd) == -1) {
 		logm(LOG_ERR, "sched_init: cannot activate template: %s",
-				strerror(errno));
-		return -1;
+		    strerror(errno));
+		return (-1);
 	}
 
 	setutxent();
@@ -107,7 +106,8 @@ time_t		 newboot, oldboot;
 	endutxent();
 
 	if (newboot == 0)
-		logm(LOG_WARNING, "boottime: cannot find boot time record in utmp?");
+		logm(LOG_WARNING, "boottime: "
+			"cannot find boot time record in utmp?");
 
 	oldboot = get_boottime(newboot);
 
@@ -124,7 +124,7 @@ time_t		 newboot, oldboot;
 	if (job_enumerate(do_start_job, NULL) == -1)
 		logm(LOG_ERR, "sched_init: job_enumerate failed");
 
-	return 0;
+	return (0);
 }
 
 sjob_t *
@@ -138,13 +138,14 @@ sjob_t	*nsj, *nj = NULL;
 			nj = &sjobs[i];
 
 		if (sjobs[i].sjob_id == id)
-			return &sjobs[i];
+			return (&sjobs[i]);
 	}
 
 	if (nj == NULL) {
-		if ((nsj = realloc(sjobs, (nsjobs + 1) * sizeof(sjob_t))) == NULL) {
+		if ((nsj = realloc(sjobs,
+				(nsjobs + 1) * sizeof (sjob_t))) == NULL) {
 			logm(LOG_ERR, "sjob_find: out of memory");
-			return NULL;
+			return (NULL);
 		}
 
 		sjobs = nsj;
@@ -152,11 +153,11 @@ sjob_t	*nsj, *nj = NULL;
 		nsjobs++;
 	}
 
-	bzero(nj, sizeof(*nj));
+	bzero(nj, sizeof (*nj));
 	nj->sjob_id = id;
 	nj->sjob_timer = -1;
 	nj->sjob_state = SJOB_STOPPED;
-	return nj;
+	return (nj);
 }
 
 int
@@ -172,7 +173,7 @@ int	 i, n = 0;
 			n++;
 	}
 
-	return n;
+	return (n);
 }
 
 void
@@ -181,25 +182,30 @@ sched_stop_all()
 int	 i;
 
 	for (i = 0; i < nsjobs; ++i) {
+	job_t	*job;
 		if (sjobs[i].sjob_id == -1)
 			continue;
 
 		if (sjobs[i].sjob_state == SJOB_RUNNING) {
-			if (ct_ctl_abandon(sjobs[i].sjob_contract->ct_ctl) == -1)
-				logm(LOG_WARNING, "sched_stop_all: cannot abandon %d: %s",
-						(int) sjobs[i].sjob_contract->ct_id,
-						strerror(errno));
-#if 0
-		job_t	*job;
+#if 0	/* Enable this when contract adoption is working */
+			if (ct_ctl_abandon(sjobs[i].sjob_contract->ct_ctl)
+			    == -1)
+				logm(LOG_WARNING, "sched_stop_all: "
+				    "cannot abandon %d: %s",
+				    (int)sjobs[i].sjob_contract->ct_id,
+				    strerror(errno));
+#else
 			if ((job = find_job(sjobs[i].sjob_id)) == NULL) {
-				logm(LOG_WARNING, "sched_stop_all: could not find job "
-						"for sjob id %d", sjobs[i].sjob_id);
+				logm(LOG_WARNING, "sched_stop_all: could not "
+				    "find job for sjob id %d",
+				    sjobs[i].sjob_id);
 				continue;
 			}
 
 			if (sched_stop(job) == -1)
-				logm(LOG_WARNING, "sched_stop_all: sched_stop failed: %s",
-						strerror(errno));
+				logm(LOG_WARNING, "sched_stop_all: "
+				    "sched_stop failed: %s",
+				    strerror(errno));
 #endif
 		}
 	}
@@ -211,9 +217,9 @@ sched_get_state(job)
 {
 sjob_t	*sjob;
 	if ((sjob = sjob_find(job->job_id)) == NULL)
-		return SJOB_UNKNOWN;
+		return (SJOB_UNKNOWN);
 
-	return sjob->sjob_state;
+	return (sjob->sjob_state);
 }
 
 /*ARGSUSED*/
@@ -229,7 +235,7 @@ sjob_t	*sjob = udata;
 	 * period the process still hadn't exited.
 	 */
 	logm(LOG_INFO, "contract %ld: stop timeout expired, sending SIGKILL",
-			(long) sjob->sjob_contract);
+			(long)sjob->sjob_contract);
 
 	if (sigsend(P_CTID, sjob->sjob_contract->ct_id, SIGKILL) == -1)
 		logm(LOG_ERR, "sched_stop: could not signal processes: %s",
@@ -251,22 +257,27 @@ sjob_t		*sjob = NULL;
 	 */
 	if (*job->job_stop_method) {
 		if (fork_execute(job, job->job_stop_method) == -1) {
-			logm(LOG_ERR, "sched_stop: could not start stop method: %s; sending SIGTERM",
+			logm(LOG_ERR, "sched_stop: could not start "
+				"stop method: %s; sending SIGTERM",
+				strerror(errno));
+			if (sigsend(P_CTID, sjob->sjob_contract->ct_id,
+					SIGTERM) == -1)
+				logm(LOG_ERR, "sched_stop: could not "
+					"signal processes: %s",
 					strerror(errno));
-			if (sigsend(P_CTID, sjob->sjob_contract->ct_id, SIGTERM) == -1)
-				logm(LOG_ERR, "sched_stop: could not signal processes: %s",
-						strerror(errno));
 		}
 
 		if ((sjob->sjob_stop_contract = contract_open_latest()) == NULL)
-			logm(LOG_ERR, "sched_stop: cannot open latest contract: %s",
-					strerror(errno));
+			logm(LOG_ERR, "sched_stop: "
+				"cannot open latest contract: %s",
+				strerror(errno));
 	} else {
 		if (sigsend(P_CTID, sjob->sjob_contract->ct_id, SIGTERM) == -1)
-			logm(LOG_ERR, "sched_stop: could not signal processes: %s",
-					strerror(errno));
+			logm(LOG_ERR, "sched_stop: "
+				"could not signal processes: %s",
+				strerror(errno));
 	}
-		
+
 	sjob->sjob_state = SJOB_STOPPING;
 
 	/*
@@ -274,10 +285,10 @@ sjob_t		*sjob = NULL;
 	 */
 	sjob->sjob_timer = ev_add_once(30, sched_stop_timer_callback, sjob);
 
-	return 0;
+	return (0);
 
 err:
-	return -1;
+	return (-1);
 }
 
 int
@@ -304,9 +315,11 @@ sjob_t		*sjob = NULL;
 	if (fd_open(sjob->sjob_contract->ct_events) == -1)
 		goto err;
 
-	if (register_fd(sjob->sjob_contract->ct_events, FDE_READ, sched_fd_callback, NULL) == -1) {
+	if (register_fd(sjob->sjob_contract->ct_events, FDE_READ,
+			sched_fd_callback, NULL) == -1) {
 		logm(LOG_ERR, "sched_start: register_fd(%d): %s",
-				sjob->sjob_contract->ct_events, strerror(errno));
+				sjob->sjob_contract->ct_events,
+				strerror(errno));
 		goto err;
 	}
 
@@ -314,11 +327,11 @@ sjob_t		*sjob = NULL;
 		logm(LOG_WARNING, "sched_start: job_update failed");
 
 	sjob->sjob_state = SJOB_RUNNING;
-	return 0;
+	return (0);
 
 err:
 	free_sjob(sjob);
-	return -1;
+	return (-1);
 }
 
 void
@@ -351,7 +364,8 @@ sjob_t	*sjob;
 			return;
 
 		if (sched_start(job) == -1)
-			logm(LOG_WARNING, "sched_job_enabled: sched_start failed");
+			logm(LOG_WARNING, "sched_job_enabled: "
+				"sched_start failed");
 	}
 }
 
@@ -363,15 +377,17 @@ sjob_t	*sjob;
 	if ((sjob = sjob_find(job->job_id)) == NULL)
 		return;
 
-	if ((job->job_flags & JOB_ENABLED) && (job->job_flags & JOB_SCHEDULED)) {
+	if ((job->job_flags & JOB_ENABLED) &&
+		(job->job_flags & JOB_SCHEDULED)) {
 		sched_job_unscheduled(job);
 	} else {
 		if (sjob->sjob_state != SJOB_RUNNING)
 			return;
 
 		if (sched_stop(job) == -1)
-			logm(LOG_WARNING, "sched_job_disabled: sched_stop(%ld) failed",
-					(long) job->job_id);
+			logm(LOG_WARNING, "sched_job_disabled: "
+				"sched_stop(%ld) failed",
+				(long)job->job_id);
 	}
 }
 
@@ -423,7 +439,7 @@ int		 i;
 	assert(sjob);
 	assert(fd == sjob->sjob_contract->ct_events);
 
-	bzero(&ev, sizeof(ev));
+	bzero(&ev, sizeof (ev));
 
 	if (ct_event_read(sjob->sjob_contract->ct_events, &ev) != 0) {
 		logm(LOG_ERR, "sched_fd_callback: ct_event_read failed: %s",
@@ -435,34 +451,41 @@ int		 i;
 	case CT_PR_EV_EMPTY:
 		/* A process contract is now empty. */
 		/*
-		 * If the sjob has a stop contract running, kill it.  There's no need
-		 * to be delicate here as the stop method is transient anyway.
+		 * If the sjob has a stop contract running, kill it.  There's
+		 * no need to be delicate here as the stop method is transient
+		 * anyway.
 		 */
 		if (sjob->sjob_stop_contract) {
-			(void) sigsend(P_CTID, sjob->sjob_stop_contract->ct_id, SIGKILL);
-			if (ct_ctl_abandon(sjob->sjob_stop_contract->ct_ctl) == -1)
-				logm(LOG_WARNING, "ct_ctl_abandon of stop method contract failed: %s", 
-						strerror(errno));
+			(void) sigsend(P_CTID,
+				sjob->sjob_stop_contract->ct_id, SIGKILL);
+			if (ct_ctl_abandon(sjob->sjob_stop_contract->ct_ctl)
+			    == -1)
+				logm(LOG_WARNING, "ct_ctl_abandon of stop "
+					"method contract failed: %s",
+					strerror(errno));
 			contract_close(sjob->sjob_stop_contract);
 			sjob->sjob_stop_contract = NULL;
 		}
 
 		if (ct_ctl_abandon(sjob->sjob_contract->ct_ctl) == -1)
 			logm(LOG_WARNING, "job %ld: ct_ctl_abandon failed: %s",
-					(long) sjob->sjob_id, strerror(errno));
+					(long)sjob->sjob_id, strerror(errno));
 		contract_close(sjob->sjob_contract);
 
 		if ((job = find_job(sjob->sjob_id)) == NULL)
 			abort();
 
 		if (job_set_ctid(job, -1) == -1)
-			logm(LOG_WARNING, "job %ld: cannot set ctid", (long) sjob->sjob_id);
+			logm(LOG_WARNING, "job %ld: "
+				"cannot set ctid",
+				(long)sjob->sjob_id);
 
 		sjob->sjob_contract = NULL;
 
 		if (sjob->sjob_timer != -1 && ev_cancel(sjob->sjob_timer) == -1)
-			logm(LOG_WARNING, "job %ld: cannot cancel stop timeout: %s",
-					(long) sjob->sjob_id, strerror(errno));
+			logm(LOG_WARNING, "job %ld: cannot cancel "
+				"stop timeout: %s",
+				(long)sjob->sjob_id, strerror(errno));
 
 		sjob->sjob_state = SJOB_STOPPED;
 
@@ -474,22 +497,30 @@ int		 i;
 		 */
 		if (!(job->job_flags & JOB_MAINTENANCE)) {
 			if (job->job_flags & JOB_SCHEDULED) {
-				if (job->job_schedule.cron_type != CRON_ABSOLUTE)
+				if (job->job_schedule.cron_type
+				    != CRON_ABSOLUTE)
 					sched_job_scheduled(job);
 				else {
 					if (job_unschedule(job) == -1)
-						logm(LOG_ERR, "job %ld: cannot unschedule: %s",
-								(long) job->job_id, strerror(errno));
+						logm(LOG_ERR, "job %ld: cannot "
+							"unschedule: %s",
+							(long)job->job_id,
+							strerror(errno));
 				}
 			} else if (job->job_flags & JOB_ENABLED) {
-				if (sjob->sjob_start_time + SCHED_MIN_RUNTIME > current_time) {
-					if (job_set_maintenance(job, "Restarting too quickly") == -1)
-						logm(LOG_WARNING, "job %ld: could not set maintenance mode",
-								(long) job->job_id);
+				if (sjob->sjob_start_time + SCHED_MIN_RUNTIME
+				    > current_time) {
+					if (job_set_maintenance(job,
+						"Restarting too quickly") == -1)
+						logm(LOG_WARNING, "job %ld: "
+							"could not set "
+							"maintenance mode",
+							(long)job->job_id);
 				} else {
 					if (sched_start(job) == -1)
-						logm(LOG_WARNING, "job %ld: restart failed",
-								(long) job->job_id);
+						logm(LOG_WARNING, "job %ld: "
+							"restart failed",
+							(long)job->job_id);
 				}
 			}
 		}
@@ -508,14 +539,16 @@ int		 i;
 			break;
 
 		if (ct_pr_event_get_pid(ev, &pid) == -1) {
-			logm(LOG_WARNING, "job %ld: ct_pr_event_get_pid failed: %s",
-					(long) sjob->sjob_id, strerror(errno));
+			logm(LOG_WARNING, "job %ld: ct_pr_event_get_pid "
+				"failed: %s",
+				(long)sjob->sjob_id, strerror(errno));
 			pid = 0;
 		}
 
 		if (ct_pr_event_get_exitstatus(ev, &status) == -1) {
-			logm(LOG_WARNING, "job %ld: ct_pr_event_get_exitstatus failed: %s (assuming 0)",
-					(long) sjob->sjob_id, strerror(errno));
+			logm(LOG_WARNING, "job %ld: ct_pr_event_get_exitstatus "
+				"failed: %s (assuming 0)",
+				(long)sjob->sjob_id, strerror(errno));
 			status = 0;
 		}
 
@@ -525,19 +558,22 @@ int		 i;
 			 * means 'fail'.
 			 */
 			if (WEXITSTATUS(status) == 0) {
-				logm(LOG_INFO, "job %ld: pid=%ld normal exit status 0",
-						(long) sjob->sjob_id, (long) pid);
+				logm(LOG_INFO, "job %ld: pid=%ld normal "
+					"exit status 0",
+					(long)sjob->sjob_id, (long)pid);
 				sched_handle_exit(sjob);
 			} else {
-				logm(LOG_INFO, "job %ld: pid=%ld abnormal exit status %d",
-						(long) sjob->sjob_id, (long) pid, WEXITSTATUS(status));
+				logm(LOG_INFO, "job %ld: pid=%ld abnormal "
+					"exit status %d",
+					(long)sjob->sjob_id, (long)pid,
+					WEXITSTATUS(status));
 				sched_handle_fail(sjob);
 			}
 		} else if (WIFSIGNALED(status)) {
-			/* 
-			 * A process in the contract exited from a signal.  Certain
-			 * signals are considered crash events, others are simple
-			 * exits.
+			/*
+			 * A process in the contract exited from a signal.
+			 * Certain signals are considered crash events, others
+			 * are simple exits.
 			 */
 			sig = WTERMSIG(status);
 
@@ -550,15 +586,19 @@ int		 i;
 			case SIGBUS:
 			case SIGSEGV:
 			case SIGSYS:
-				logm(LOG_INFO, "job %ld: pid=%ld crash on fatal signal %d",
-						(long) sjob->sjob_id, (long) pid, sig);
+				logm(LOG_INFO, "job %ld: pid=%ld crash on "
+					"fatal signal %d",
+					(long)sjob->sjob_id,
+					(long)pid, sig);
 				sched_handle_crash(sjob);
 				break;
 
 			default:
 				if (pid == sjob->sjob_pid) {
-					logm(LOG_INFO, "job %ld: pid=%ld fail on fatal signal %d",
-							(long) sjob->sjob_id, (long) pid, sig);
+					logm(LOG_INFO, "job %ld: pid=%ld fail "
+						"on fatal signal %d",
+						(long)sjob->sjob_id,
+						(long)pid, sig);
 					sched_handle_fail(sjob);
 				}
 				break;
@@ -593,22 +633,24 @@ char		 timestr[128];
 	if (sjob->sjob_state == SJOB_STOPPING)
 		return;
 
-	if (gethostname(hostname, sizeof(hostname)) == -1)
-		(void) strlcpy(hostname, "unknown", sizeof(hostname));
+	if (gethostname(hostname, sizeof (hostname)) == -1)
+		(void) strlcpy(hostname, "unknown", sizeof (hostname));
 	else
-		hostname[sizeof(hostname) - 1] = 0;
+		hostname[sizeof (hostname) - 1] = 0;
 
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
 	if (job->job_exit_action & ST_EXIT_MAIL) {
-		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
-		(void) snprintf(msg, sizeof(msg),
+		(void) strftime(timestr, sizeof (timestr),
+			"%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
+		(void) snprintf(msg, sizeof (msg),
 			"To: %s\n"
 			"Subject: \"%s\" exited\n"
 			"Date: %s"
 			"\n"
-			"Your job \"%s\" on the host \"%s\" has exited successfully.\n",
+			"Your job \"%s\" on the host \"%s\" has "
+			"exited successfully.\n",
 			job->job_username,
 			job->job_fmri,
 			timestr,
@@ -616,28 +658,34 @@ char		 timestr[128];
 			hostname);
 	}
 
-	if ((job->job_flags & JOB_ENABLED) && !(job->job_flags & JOB_SCHEDULED) &&
+	if ((job->job_flags & JOB_ENABLED) &&
+	    !(job->job_flags & JOB_SCHEDULED) &&
 	    sjob->sjob_start_time + SCHED_MIN_RUNTIME > current_time) {
 		if (job_set_maintenance(job, "Restarting too quickly") == -1)
 			logm(LOG_WARNING, "job %ld: could not set maintenance",
-					(long) job->job_id);
+					(long)job->job_id);
 		if (job->job_exit_action & ST_EXIT_MAIL)
-			(void) strlcat(msg, "\nThe job did not run for long enough, and has been "
-					"placed in the maintenance state.\n", sizeof(msg));
+			(void) strlcat(msg, "\nThe job did not run for long "
+				"enough, and has been placed in the "
+				"maintenance state.\n", sizeof (msg));
 	}
 
 	if (job->job_exit_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
-			logm(LOG_WARNING, "sched_handle_exit: job_disable failed");
+			logm(LOG_WARNING, "sched_handle_exit: "
+				"job_disable failed");
 		else if (job->job_exit_action & ST_EXIT_MAIL)
-			(void) strlcat(msg, "\nThe exit action for this job is 'disable', "
-					"so the job has been disabled.\n", sizeof(msg));
+			(void) strlcat(msg, "\nThe exit action for this job "
+				"is 'disable', so the job has been disabled.\n",
+				sizeof (msg));
 	}
 
 	if (job->job_exit_action & ST_EXIT_MAIL) {
-		(void) strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
+		(void) strlcat(msg, "\nRegards,\n"
+			"\tThe job server.\n", sizeof (msg));
 		if (send_mail(job->job_username, msg) == -1)
-			logm(LOG_ERR, "sched_handle_fail: cannot send mail: %s", strerror(errno));
+			logm(LOG_ERR, "sched_handle_fail: "
+				"cannot send mail: %s", strerror(errno));
 	}
 	free_job(job);
 }
@@ -658,17 +706,18 @@ char		 timestr[128];
 	if (sjob->sjob_state == SJOB_STOPPING)
 		return;
 
-	if (gethostname(hostname, sizeof(hostname)) == -1)
-		(void) strlcpy(hostname, "unknown", sizeof(hostname));
+	if (gethostname(hostname, sizeof (hostname)) == -1)
+		(void) strlcpy(hostname, "unknown", sizeof (hostname));
 	else
-		hostname[sizeof(hostname) - 1] = 0;
+		hostname[sizeof (hostname) - 1] = 0;
 
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
 	if (job->job_fail_action & ST_EXIT_MAIL) {
-		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
-		(void) snprintf(msg, sizeof(msg),
+		(void) strftime(timestr, sizeof (timestr),
+			"%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
+		(void) snprintf(msg, sizeof (msg),
 			"To: %s\n"
 			"Subject: \"%s\" failed\n"
 			"Date: %s"
@@ -683,18 +732,22 @@ char		 timestr[128];
 
 	if (job->job_fail_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
-			logm(LOG_WARNING, "sched_handle_fail: job_disabled failed");
+			logm(LOG_WARNING, "sched_handle_fail: "
+				"job_disabled failed");
 		else if (job->job_fail_action & ST_EXIT_MAIL)
-			(void) strlcat(msg, "\nThe fail action for this job is 'disable', "
-					"so the job has been disabled.\n", sizeof(msg));
+			(void) strlcat(msg, "\nThe fail action for this job "
+				"is 'disable', so the job has been disabled.\n",
+				sizeof (msg));
 	}
 
 	if (job->job_fail_action & ST_EXIT_MAIL) {
-		(void) strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
+		(void) strlcat(msg, "\nRegards,\n\tThe job server.\n",
+			sizeof (msg));
 		if (send_mail(job->job_username, msg) == -1)
-			logm(LOG_ERR, "sched_handle_fail: cannot send mail: %s", strerror(errno));
+			logm(LOG_ERR, "sched_handle_fail: "
+				"cannot send mail: %s", strerror(errno));
 	}
-	
+
 	free_job(job);
 }
 
@@ -714,17 +767,18 @@ char		 timestr[128];
 	if (sjob->sjob_state == SJOB_STOPPING)
 		return;
 
-	if (gethostname(hostname, sizeof(hostname)) == -1)
-		(void) strlcpy(hostname, "unknown", sizeof(hostname));
+	if (gethostname(hostname, sizeof (hostname)) == -1)
+		(void) strlcpy(hostname, "unknown", sizeof (hostname));
 	else
-		hostname[sizeof(hostname) - 1] = 0;
+		hostname[sizeof (hostname) - 1] = 0;
 
 	if ((job = find_job(sjob->sjob_id)) == NULL)
 		abort();
 
 	if (job->job_crash_action & ST_EXIT_MAIL) {
-		(void) strftime(timestr, sizeof(timestr), "%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
-		(void) snprintf(msg, sizeof(msg),
+		(void) strftime(timestr, sizeof (timestr),
+			"%a, %d %b %Y %H:%M:%S %z", gmtime(&current_time));
+		(void) snprintf(msg, sizeof (msg),
 			"To: %s\n"
 			"Subject: \"%s\" crashed\n"
 			"Date: %s"
@@ -742,16 +796,20 @@ char		 timestr[128];
 
 	if (job->job_crash_action & ST_EXIT_DISABLE) {
 		if (job_disable(job) == -1)
-			logm(LOG_WARNING, "sched_handle_crash: job_disabled failed");
+			logm(LOG_WARNING, "sched_handle_crash: "
+				"job_disabled failed");
 		else if (job->job_fail_action & ST_EXIT_MAIL)
-			(void) strlcat(msg, "\nThe crash action for this job is 'disable', "
-					"so the job has been disabled.\n", sizeof(msg));
+			(void) strlcat(msg, "\nThe crash action for this job "
+				"is 'disable', so the job has been disabled.\n",
+				sizeof (msg));
 	}
 
 	if (job->job_crash_action & ST_EXIT_MAIL) {
-		(void) strlcat(msg, "\nRegards,\n\tThe job server.\n", sizeof(msg));
+		(void) strlcat(msg, "\nRegards,\n"
+			"\tThe job server.\n", sizeof (msg));
 		if (send_mail(job->job_username, msg) == -1)
-			logm(LOG_ERR, "sched_handle_crash: cannot send mail: %s", strerror(errno));
+			logm(LOG_ERR, "sched_handle_crash: "
+				"cannot send mail: %s", strerror(errno));
 	}
 
 	free_job(job);
@@ -770,37 +828,39 @@ int		 a1, a2;
 
 	switch (sched->cron_type) {
 	case CRON_ABSOLUTE:
-		return a1;
+		return (a1);
 
 	case CRON_EVERY_MINUTE:
 		tm->tm_sec = 0;
 		tm->tm_min++;
-		return mktime(tm);
+		return (mktime(tm));
 
 	case CRON_EVERY_HOUR:
 		if (a1 <= tm->tm_min)
 			tm->tm_hour++;
 		tm->tm_min = a1;
-		return mktime(tm);
+		return (mktime(tm));
 
 	case CRON_EVERY_DAY:
 		min = a1 % 60;
 		hr = a1 / 60;
 
-		if ((hr < tm->tm_hour) || (hr == tm->tm_hour && min <= tm->tm_min))
+		if ((hr < tm->tm_hour) ||
+			(hr == tm->tm_hour && min <= tm->tm_min))
 			tm->tm_mday++;
 		tm->tm_hour = hr;
 		tm->tm_min = min;
-		return mktime(tm);
+		return (mktime(tm));
 
 	case CRON_EVERY_WEEK:
 		wday = a1;
 		min = a2 % 60;
 		hr = a2 / 60;
 
-		if (wday < tm->tm_wday || 
+		if (wday < tm->tm_wday ||
 		    (wday == tm->tm_wday && hr < tm->tm_hour) ||
-		    (wday == tm->tm_wday && hr == tm->tm_hour && min <= tm->tm_min)) {
+		    (wday == tm->tm_wday && hr == tm->tm_hour &&
+			min <= tm->tm_min)) {
 			tm->tm_mday += ((wday + 7) - tm->tm_wday);
 		} else {
 			tm->tm_mday += (wday - tm->tm_wday);
@@ -808,10 +868,10 @@ int		 a1, a2;
 
 		tm->tm_hour = hr;
 		tm->tm_min = min;
-		return mktime(tm);
+		return (mktime(tm));
 
 	default:
-		return -1;
+		return (-1);
 	}
 }
 
@@ -867,7 +927,8 @@ sjob_t	*sjob;
 
 	sjob->sjob_nextrun = 0;
 	if (ev_cancel(sjob->sjob_timer) == -1)
-		logm(LOG_WARNING, "sched_job_unscheduled: warning: ev_cancel failed");
+		logm(LOG_WARNING, "sched_job_unscheduled: "
+			"warning: ev_cancel failed");
 }
 
 /*ARGSUSED*/
@@ -899,23 +960,27 @@ sjob_t	*sjob = NULL;
 		/*
 		 * Populate the sjob with contract information.
 		 */
-		snprintf(statfile, sizeof statfile,
+		snprintf(statfile, sizeof (statfile),
 			CTFS_ROOT "/process/%d/status", job->job_contract);
-		if ((sjob->sjob_contract_fd = open64(statfile, O_RDONLY)) == -1) {
-			logm(LOG_ERR, "do_start_job: %s: %s", statfile, strerror(errno));
+		if ((sjob->sjob_contract_fd =
+				open64(statfile, O_RDONLY)) == -1) {
+			logm(LOG_ERR, "do_start_job: %s: %s",
+				statfile, strerror(errno));
 			goto err;
 		}
 
 		if (fd_set_cloexec(sjob->sjob_contract_fd, 1) == -1) {
-			logm(LOG_ERR, "do_start_job: cannot set cloexec on contract fd: %s",
-					strerror(errno));
+			logm(LOG_ERR, "do_start_job: cannot set "
+				"cloexec on contract fd: %s",
+				strerror(errno));
 			goto err;
 		}
 
-		snprintf(ctlfile, sizeof ctlfile,
+		snprintf(ctlfile, sizeof (ctlfile),
 			CTFS_ROOT "/process/%d/ctl", job->job_contract);
 		if ((ctfd = open64(ctlfile, O_WRONLY)) == -1) {
-			logm(LOG_ERR, "do_start_job: %s: %s", ctlfile, strerror(errno));
+			logm(LOG_ERR, "do_start_job: %s: %s",
+				ctlfile, strerror(errno));
 			goto err;
 		}
 		if (ct_ctl_adopt(ctfd) != 0) {
@@ -929,10 +994,12 @@ sjob_t	*sjob = NULL;
 		/*
 		 * Register for events on the contract event fd.
 		 */
-		(void) snprintf(ctevents, sizeof ctevents, "%s/process/%d/events",
+		(void) snprintf(ctevents, sizeof (ctevents),
+				"%s/process/%d/events",
 				CTFS_ROOT, sjob->sjob_contract);
 		if ((sjob->sjob_eventfd = open64(ctevents, O_RDONLY)) == -1) {
-			logm(LOG_ERR, "do_start_job: %s: %s", ctevents, strerror(errno));
+			logm(LOG_ERR, "do_start_job: %s: %s",
+				ctevents, strerror(errno));
 			goto err;
 		}
 
@@ -941,33 +1008,35 @@ sjob_t	*sjob = NULL;
 			goto err;
 		}
 
-		if (register_fd(sjob->sjob_eventfd, FDE_READ, sched_fd_callback, NULL) == -1) {
-			logm(LOG_ERR, "do_start_job: register_fd(%d): %s", sjob->sjob_eventfd, strerror(errno));
+		if (register_fd(sjob->sjob_eventfd, FDE_READ,
+				sched_fd_callback, NULL) == -1) {
+			logm(LOG_ERR, "do_start_job: register_fd(%d): %s",
+				sjob->sjob_eventfd, strerror(errno));
 			goto err;
 		}
 
 		sjob->sjob_state = SJOB_RUNNING;
-		return 0;
+		return (0);
 	}
 
 err:
 	free_sjob(sjob);
-#endif	
+#endif
 
 	if (job->job_flags & JOB_MAINTENANCE)
-		return 0;
+		return (0);
 
 	if (job->job_flags & JOB_ENABLED) {
 		if (job->job_flags & JOB_SCHEDULED) {
 			sched_job_scheduled(job);
 		} else {
 			if (sched_start(job) == -1)
-				logm(LOG_ERR, "do_start_job: job %ld: sched_start failed",
-						(long) job->job_id);
+				logm(LOG_ERR, "do_start_job: job %ld: "
+						"sched_start failed",
+						(long)job->job_id);
 		}
-		return 0;
+		return (0);
 	}
 
-	return 0;
+	return (0);
 }
-

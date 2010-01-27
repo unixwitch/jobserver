@@ -1,30 +1,27 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 /*
  * Holds the database of configured jobs.
  */
 
-#ifndef STATE_H
-#define STATE_H
+#ifndef	STATE_H
+#define	STATE_H
 
 #include	<sys/types.h>
 #include	<rctl.h>
 
 typedef int32_t job_id_t;
 
-#define ST_EXIT_DISABLE		0x1	/* Disable on exit */
-#define ST_EXIT_RESTART		0x2	/* Restart on exit */
-#define ST_EXIT_MAIL		0x4	/* Mail user on exit */
+#define	ST_EXIT_DISABLE		0x1	/* Disable on exit */
+#define	ST_EXIT_RESTART		0x2	/* Restart on exit */
+#define	ST_EXIT_MAIL		0x4	/* Mail user on exit */
 
-#define JOB_MAINTENANCE		0x1
-#define JOB_ENABLED		0x2
-#define JOB_SCHEDULED		0x4
+#define	JOB_MAINTENANCE		0x1
+#define	JOB_ENABLED		0x2
+#define	JOB_SCHEDULED		0x4
 
 /*
  * Schedule information for scheduled jobs.
@@ -68,15 +65,15 @@ typedef struct {
 	/*
 	 * General information about a job.
 	 */
-	job_id_t 	 job_id;
+	job_id_t	 job_id;
 	char		*job_username;
 	char		*job_fmri;
 	char		*job_start_method;
 	char		*job_stop_method;
 	uint32_t	 job_flags;
 	uint32_t	 job_exit_action;	/* action on successful exit */
-	uint32_t	 job_crash_action;	/* action on crash (core, signal or hwerr) */
-	uint32_t	 job_fail_action;	/* action on non-0 exit of the first process */
+	uint32_t	 job_crash_action;	/* action on crash */
+	uint32_t	 job_fail_action;	/* action on non-0 exit */
 	cron_t		 job_schedule;
 	job_rctl_t	*job_rctls;
 	int		 job_nrctls;
@@ -210,10 +207,10 @@ int	quota_set_jobs_per_user(int);
 /*
  * Check if a particular user has access to a job.
  */
-#define JOB_VIEW	0x1	/* View information about a job */
-#define JOB_MODIFY	0x2	/* Change a job's definition */
-#define JOB_DELETE	0x4	/* Delete a job */
-#define JOB_STARTSTOP	0x8	/* Enable or disable a job */
+#define	JOB_VIEW	0x1	/* View information about a job */
+#define	JOB_MODIFY	0x2	/* Change a job's definition */
+#define	JOB_DELETE	0x4	/* Delete a job */
+#define	JOB_STARTSTOP	0x8	/* Enable or disable a job */
 
 int	job_access(job_t *, char const *, int);
 

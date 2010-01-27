@@ -1,21 +1,18 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
-#ifndef FD_H
-#define FD_H
+#ifndef	FD_H
+#define	FD_H
 
 #include	<stdarg.h>
 #include	<port.h>
 
 typedef int fde_evt_type_t;
-#define FDE_READ	0x1
-#define FDE_WRITE	0x2
-#define FDE_BOTH	(FDE_READ | FDE_WRITE)
+#define	FDE_READ	0x1
+#define	FDE_WRITE	0x2
+#define	FDE_BOTH	(FDE_READ | FDE_WRITE)
 
 typedef void (*fde_callback) (int fde, fde_evt_type_t, void *);
 
@@ -25,7 +22,7 @@ typedef void (*fde_callback) (int fde, fde_evt_type_t, void *);
  */
 int fd_init(int);
 
-/***
+/*
  * Low-level i/o interface.  You can use this if you want, but
  * the managed i/o functions below provide a higher-level wrapper
  * on top of this.
@@ -73,9 +70,9 @@ int fd_set_nonblocking(int, int);
  */
 int fd_set_cloexec(int, int);
 
-/***
+/*
  * Managed i/o.  This provides a higher level interface than basic read/write
- * notifications.  
+ * notifications.
  */
 
 /*

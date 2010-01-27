@@ -1,17 +1,14 @@
-/* Copyright (c) 2010 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 /*
  * A thin wrapper around process contracts.
  */
 
-#ifndef CT_H
-#define CT_H
+#ifndef	CT_H
+#define	CT_H
 
 #include	<sys/contract/process.h>
 

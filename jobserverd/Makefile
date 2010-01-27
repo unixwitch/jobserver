@@ -1,6 +1,11 @@
+#
+# Copyright 2010 River Tarnell.  All rights reserved.
+# Use is subject to license terms.
+#
 CC		= cc
 LINT		= lint
 CSTYLE		= /opt/onbld/bin/cstyle
+HDRCHK		= /opt/onbld/bin/hdrchk -a
 CPPFLAGS	= -DPREFIX=\"/opt/jobserver\"	\
 		  -D_XOPEN_SOURCE=500		\
 		  -D__EXTENSIONS__		\
@@ -14,6 +19,7 @@ LINTFLAGS	= -asxmu -errchk=%all,no%longptr64 -errtags=yes -Xc99=none -errsecurit
 CSTYLEFLAGS	= -cpP
 OBJS	= main.o fd.o ctl.o buffer.o state.o sched.o event.o execute.o ct.o
 SRCS	= $(OBJS:.o=.c)
+HDRS	= buffer.h ctl.h execute.h jobserver.h state.h ct.h event.h fd.h sched.h
 PROG	= jobserverd
 
 default: all
@@ -32,7 +38,8 @@ lint:
 	$(LINT) $(CPPFLAGS) $(LINTFLAGS) $(SRCS)
 
 style:
-	$(CSTYLE) $(SRCS)
+	$(CSTYLE) $(CSTYLEFLAGS) $(SRCS) $(HDRS)
+	$(HDRCHK) $(HDRS)
 
 clean:
 	rm -f $(OBJS) $(PROG)

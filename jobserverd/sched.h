@@ -1,9 +1,6 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 /*
@@ -12,7 +9,7 @@
  */
 
 #ifndef SCHED_H
-#define SCHED_H
+#define	SCHED_H
 
 #include	<sys/contract/process.h>
 
@@ -25,7 +22,7 @@
  * consider the job failed and put it into maintenance mode.  This prevents a
  * broken job from continuously restarting.
  */
-#define SCHED_MIN_RUNTIME	(60*5)
+#define	SCHED_MIN_RUNTIME	(60*5)
 
 int sched_init(int port);
 
@@ -38,14 +35,14 @@ typedef enum {
 
 typedef struct {
 	job_id_t	 sjob_id;		/* job this sjob represents */
-	sjob_state_t	 sjob_state;		
+	sjob_state_t	 sjob_state;
 	contract_t	*sjob_contract;
 	contract_t	*sjob_stop_contract;
 	ev_id_t		 sjob_timer;
 	pid_t		 sjob_pid;
 	int		 sjob_fatal;		/* job received a fatal event */
-	time_t		 sjob_nextrun;		/* next runtime for scheduled jobs */
-	time_t		 sjob_start_time;	/* when the job last started */
+	time_t		 sjob_nextrun;
+	time_t		 sjob_start_time;
 	char const	*sjob_lasterr;
 } sjob_t;
 

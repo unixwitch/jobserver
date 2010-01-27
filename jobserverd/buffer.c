@@ -1,9 +1,6 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include	<stdlib.h>
@@ -21,9 +18,9 @@ buffer_t *
 buf_new()
 {
 buffer_t	*buf;
-	if ((buf = calloc(1, sizeof(*buf))) == NULL)
+	if ((buf = calloc(1, sizeof (*buf))) == NULL)
 		logm(LOG_ERR, "buf_new: out of memory");
-	return buf;
+	return (buf);
 }
 
 buffer_t *
@@ -32,16 +29,16 @@ buf_new_size(size)
 {
 buffer_t	*buf;
 	if ((buf = buf_new()) == NULL)
-		return NULL;
+		return (NULL);
 
 	if ((buf->b_data = calloc(1, size)) == NULL) {
 		logm(LOG_ERR, "buf_new_size: out of memory");
 		buf_free(buf);
-		return NULL;
+		return (NULL);
 	}
 
 	buf->b_size = size;
-	return buf;
+	return (buf);
 }
 
 buffer_t *
@@ -51,10 +48,10 @@ buf_new_data(data, size)
 {
 buffer_t	*buf;
 	if ((buf = buf_new_size(size)) == NULL)
-		return NULL;
+		return (NULL);
 
 	(void) memcpy(buf->b_data, data, size);
-	return buf;
+	return (buf);
 }
 
 buffer_t *
@@ -64,11 +61,11 @@ buf_new_nocopy(data, size)
 {
 buffer_t	*buf;
 	if ((buf = buf_new()) == NULL)
-		return NULL;
+		return (NULL);
 
 	buf->b_data = data;
 	buf->b_size = size;
-	return buf;
+	return (buf);
 }
 
 void
@@ -77,7 +74,6 @@ buf_free(buf)
 {
 	free(buf->b_data);
 	free(buf);
-	return;
 }
 
 int
@@ -88,8 +84,8 @@ buf_resize(buf, size)
 char	*newd;
 	if ((newd = realloc(buf->b_data, size)) == NULL && errno == ENOMEM) {
 		logm(LOG_ERR, "buf_resize: out of memory (need %lu bytes)",
-				(unsigned long) size);
-		return -1;
+			(unsigned long) size);
+		return (-1);
 	}
 
 	if (size > buf->b_size)
@@ -98,7 +94,7 @@ char	*newd;
 	buf->b_data = newd;
 	buf->b_size = size;
 
-	return 0;
+	return (0);
 }
 
 int
@@ -110,7 +106,7 @@ buf_insert(buf, pos, data, size)
 char	*newd;
 	if ((newd = realloc(buf->b_data, buf->b_size + size)) == NULL) {
 		logm(LOG_ERR, "buf_insert: out of memory");
-		return -1;
+		return (-1);
 	}
 
 	buf->b_data = newd;
@@ -123,7 +119,7 @@ char	*newd;
 
 	(void) memcpy(buf->b_data + pos, data, size);
 	buf->b_size += size;
-	return 0;
+	return (0);
 }
 
 int
@@ -132,11 +128,12 @@ buf_erase(buf, pos, n)
 	size_t		 pos, n;
 {
 	if (n == 0)
-		return 0;
+		return (0);
 
-	(void) memcpy(buf->b_data + pos, buf->b_data + pos + n, buf->b_size - (pos + n));
+	(void) memcpy(buf->b_data + pos, buf->b_data + pos + n,
+		buf->b_size - (pos + n));
 	buf->b_size -= n;
-	return 0;
+	return (0);
 }
 
 int
@@ -146,10 +143,12 @@ buf_clear(buf)
 	free(buf->b_data);
 	buf->b_size = 0;
 	buf->b_data = 0;
-	return 0;
+	return (0);
 }
+
 #ifdef TEST
-void logm(int level, char const *fmt, ...)
+void
+logm(int level, char const *fmt, ...)
 {
 va_list	ap;
 	va_start(ap, fmt);
@@ -180,6 +179,6 @@ buffer_t	*buf;
 	assert(buf->b_size == 7);
 	assert(memcmp(buf->b_data, "quuxbar", 7) == 0);
 
-	return 0;
+	return (0);
 }
 #endif	/* TEST */

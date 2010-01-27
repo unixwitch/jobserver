@@ -1,17 +1,14 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 /*
  * Simple interface to trigger one-off or repeating events.
  */
 
-#ifndef EVENT_H
-#define EVENT_H
+#ifndef	EVENT_H
+#define	EVENT_H
 
 #include	<port.h>
 
@@ -19,10 +16,9 @@ typedef int ev_id_t;
 typedef void (*ev_callback) (ev_id_t, void *);
 
 /*
- * Initialise the event subsystem to support a given number of
- * concurrent events.
+ * Initialise the event subsystem.
  */
-int ev_init(int port, int nevts);
+int ev_init(int port);
 
 /*
  * Handle a timer port event.

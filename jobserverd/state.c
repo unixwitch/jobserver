@@ -1,9 +1,6 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include	<sys/stat.h>
@@ -24,7 +21,7 @@
 #include	"state.h"
 #include	"sched.h"
 
-#define DB_PATH "/var/jobserver"
+#define	DB_PATH "/var/jobserver"
 
 static DB_ENV	*env;
 static DB	*db_job;
@@ -41,15 +38,17 @@ struct stat	sb;
 
 	if (stat(DB_PATH, &sb) == -1) {
 		if (errno != ENOENT) {
-			logm(LOG_ERR, "statedb_init: cannot access database %s: %s",
-					DB_PATH, strerror(errno));
-			return -1;
+			logm(LOG_ERR, "statedb_init: "
+			    "cannot access database %s: %s",
+			    DB_PATH, strerror(errno));
+			return (-1);
 		}
 
 		if (mkdir(DB_PATH, 0700) == -1) {
-			logm(LOG_ERR, "statedb_init: cannot create database %s: %s",
-					DB_PATH, strerror(errno));
-			return -1;
+			logm(LOG_ERR, "statedb_init: "
+			    "cannot create database %s: %s",
+			    DB_PATH, strerror(errno));
+			return (-1);
 		}
 
 		logm(LOG_NOTICE, "created directory %s", DB_PATH);
@@ -57,15 +56,17 @@ struct stat	sb;
 
 	if (stat(DB_PATH "/db", &sb) == -1) {
 		if (errno != ENOENT) {
-			logm(LOG_ERR, "statedb_init: cannot access database %s: %s",
-					DB_PATH "/db", strerror(errno));
-			return -1;
+			logm(LOG_ERR, "statedb_init: "
+			    "cannot access database %s: %s",
+			    DB_PATH "/db", strerror(errno));
+			return (-1);
 		}
 
 		if (mkdir(DB_PATH "/db", 0700) == -1) {
-			logm(LOG_ERR, "statedb_init: cannot create database %s: %s",
-					DB_PATH "/db", strerror(errno));
-			return -1;
+			logm(LOG_ERR, "statedb_init: "
+			    "cannot create database %s: %s",
+			    DB_PATH "/db", strerror(errno));
+			return (-1);
 		}
 
 		logm(LOG_NOTICE, "created directory %s", DB_PATH "/db");
@@ -73,45 +74,46 @@ struct stat	sb;
 
 	if ((err = db_env_create(&env, 0)) != 0) {
 		logm(LOG_ERR, "statedb_init: cannot create environment: %s",
-				db_strerror(err));
+		    db_strerror(err));
 		env = NULL;
-		return -1;
+		return (-1);
 	}
 
 	if ((err = env->open(env, DB_PATH "/db",
-				DB_CREATE | DB_INIT_TXN | DB_INIT_LOG | DB_INIT_MPOOL, 0)) != 0) {
+	    DB_CREATE | DB_INIT_TXN | DB_INIT_LOG |
+	    DB_INIT_MPOOL, 0)) != 0) {
 		logm(LOG_ERR, "statedb_init: cannot open environment: %s",
-				db_strerror(err));
+		    db_strerror(err));
 		goto err;
 	}
 
 	if ((err = db_create(&db_job, env, 0)) != 0) {
 		logm(LOG_ERR, "statedb_init: db_create failed: %s",
-				db_strerror(err));
+		    db_strerror(err));
 		goto err;
 	}
 
-	if ((err = db_job->open(db_job, NULL, "job.db", NULL, DB_BTREE, 
-					DB_CREATE | DB_AUTO_COMMIT, 0)) != 0) {
+	if ((err = db_job->open(db_job, NULL, "job.db", NULL, DB_BTREE,
+	    DB_CREATE | DB_AUTO_COMMIT, 0)) != 0) {
 		logm(LOG_ERR, "statedb_init: db open failed: %s",
-				db_strerror(err));
+		    db_strerror(err));
 		goto err;
 	}
 
 	if ((err = db_create(&db_config, env, 0)) != 0) {
 		logm(LOG_ERR, "statedb_init: db_create failed: %s",
-				db_strerror(err));
+		    db_strerror(err));
 		goto err;
 	}
 
-	if ((err = db_job->open(db_config, NULL, "config.db", NULL, DB_BTREE, 
-					DB_CREATE | DB_AUTO_COMMIT, 0)) != 0) {
+	if ((err = db_job->open(db_config, NULL, "config.db", NULL, DB_BTREE,
+	    DB_CREATE | DB_AUTO_COMMIT, 0)) != 0) {
 		logm(LOG_ERR, "statedb_init: db open failed: %s",
-				db_strerror(err));
+		    db_strerror(err));
 		goto err;
 	}
 
-	return 0;
+	return (0);
 
 err:
 	if (db_job != NULL)
@@ -122,7 +124,7 @@ err:
 	db_job = db_config = NULL;
 	(void) env->close(env, 0);
 	env = NULL;
-	return -1;
+	return (-1);
 }
 
 void
@@ -132,21 +134,22 @@ int	err;
 	if (db_job) {
 		if ((err = db_job->close(db_job, 0)) != 0)
 			logm(LOG_ERR, "statedb_shutdown: closing job db: %s",
-					db_strerror(err));
+			    db_strerror(err));
 		db_job = NULL;
 	}
 
 	if (db_config) {
 		if ((err = db_config->close(db_config, 0)) != 0)
 			logm(LOG_ERR, "statedb_shutdown: closing config db: %s",
-					db_strerror(err));
+			    db_strerror(err));
 		db_config = NULL;
 	}
 
 	if (env) {
 		if ((err = env->close(env, 0)) != 0)
-			logm(LOG_ERR, "statedb_shutdown: closing environment: %s",
-					db_strerror(err));
+			logm(LOG_ERR, "statedb_shutdown: "
+			    "closing environment: %s",
+			    db_strerror(err));
 		env = NULL;
 	}
 }
@@ -172,44 +175,45 @@ job_id_t	 id;
 
 	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
 		logm(LOG_ERR, "next_job_id: txn start failed: %s",
-				db_strerror(errno));
-		return -1;
+		    db_strerror(errno));
+		return (-1);
 	}
 
-	bzero(&key, sizeof key);
-	bzero(&data, sizeof data);
+	bzero(&key, sizeof (key));
+	bzero(&data, sizeof (data));
 
 	key.data = "next_job_id";
 	key.size = strlen(key.data);
 
 	data.data = &id;
-	data.size = data.ulen = sizeof(id);
+	data.size = data.ulen = sizeof (id);
 	data.flags = DB_DBT_USERMEM;
 
 	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
 		if (err != DB_NOTFOUND) {
 			logm(LOG_ERR, "next_job_id: db get failed: %s",
-					db_strerror(err));
+			    db_strerror(err));
 			(void) txn->abort(txn);
-			return -1;
+			return (-1);
 		}
 
 		/* This is the first call, so insert a new key. */
 		id = 1;
-		if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
+		if ((err = db_config->put(db_config,
+		    txn, &key, &data, 0)) != 0) {
 			logm(LOG_ERR, "next_job_id: db put failed: %s",
-					db_strerror(err));
+			    db_strerror(err));
 			(void) txn->abort(txn);
-			return -1;
+			return (-1);
 		}
 
 		if ((err = txn->commit(txn, 0)) != 0) {
 			logm(LOG_ERR, "next_job_id: commit failed: %s",
-					db_strerror(err));
-			return -1;
+			    db_strerror(err));
+			return (-1);
 		}
 
-		return id - 1;
+		return (id - 1);
 	}
 
 	/*
@@ -219,21 +223,21 @@ job_id_t	 id;
 
 	if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
 		logm(LOG_ERR, "next_job_id: db put failed: %s",
-				db_strerror(err));
+		    db_strerror(err));
 		(void) txn->abort(txn);
-		return -1;
+		return (-1);
 	}
 
 	if ((err = txn->commit(txn, 0)) != 0) {
 		logm(LOG_ERR, "next_job_id: commit failed: %s",
-				db_strerror(err));
-		return -1;
+		    db_strerror(err));
+		return (-1);
 	}
 
-	return id - 1;
+	return (id - 1);
 }
 
-int 
+int
 quota_get_jobs_per_user()
 {
 DBT		 key, data;
@@ -246,37 +250,38 @@ int		 njobs;
 
 	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
 		logm(LOG_ERR, "quota_get_njobs_per_user: txn start failed: %s",
-				db_strerror(errno));
-		return -1;
+		    db_strerror(errno));
+		return (-1);
 	}
 
-	bzero(&key, sizeof key);
-	bzero(&data, sizeof data);
+	bzero(&key, sizeof (key));
+	bzero(&data, sizeof (data));
 
 	key.data = "quota_jobs_per_user";
 	key.size = strlen(key.data);
 
 	data.data = &njobs;
-	data.size = data.ulen = sizeof(njobs);
+	data.size = data.ulen = sizeof (njobs);
 	data.flags = DB_DBT_USERMEM;
 
 	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
 		(void) txn->abort(txn);
 
 		if (err != DB_NOTFOUND) {
-			logm(LOG_ERR, "quota_get_jobs_per_user: db get failed: %s",
-					db_strerror(err));
-			return -1;
+			logm(LOG_ERR, "quota_get_jobs_per_user: "
+			    "db get failed: %s",
+			    db_strerror(err));
+			return (-1);
 		}
 
-		return 0;
+		return (0);
 	}
 
 	(void) txn->abort(txn);
-	return njobs;
+	return (njobs);
 }
 
-int 
+int
 quota_set_jobs_per_user(n)
 	int	n;
 {
@@ -290,17 +295,17 @@ int		 err;
 	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
 		logm(LOG_ERR, "quota_set_njobs_per_user: txn start failed: %s",
 				db_strerror(errno));
-		return -1;
+		return (-1);
 	}
 
-	bzero(&key, sizeof key);
-	bzero(&data, sizeof data);
+	bzero(&key, sizeof (key));
+	bzero(&data, sizeof (data));
 
 	key.data = "quota_jobs_per_user";
 	key.size = strlen(key.data);
 
 	data.data = &n;
-	data.size = data.ulen = sizeof(n);
+	data.size = data.ulen = sizeof (n);
 	data.flags = DB_DBT_USERMEM;
 
 	if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
@@ -308,7 +313,7 @@ int		 err;
 
 		logm(LOG_ERR, "quota_set_jobs_per_user: db put failed: %s",
 				db_strerror(err));
-		return -1;
+		return (-1);
 	}
 
 	if ((err = txn->commit(txn, 0)) != 0) {
@@ -316,10 +321,10 @@ int		 err;
 
 		logm(LOG_ERR, "quota_set_jobs_per_user: commit failed: %s",
 				db_strerror(err));
-		return -1;
+		return (-1);
 	}
 
-	return 0;
+	return (0);
 }
 
 job_t *
@@ -338,7 +343,7 @@ char		*fmri = NULL;
 		goto err;
 	}
 
-	if ((job = calloc(1, sizeof *job)) == NULL) {
+	if ((job = calloc(1, sizeof (*job))) == NULL) {
 		logm(LOG_ERR, "create_job: out of memory");
 		goto err;
 	}
@@ -357,7 +362,7 @@ char		*fmri = NULL;
 		logm(LOG_ERR, "create_job: out of memory");
 		goto err;
 	}
-		
+
 
 	job->job_fail_action = ST_EXIT_DISABLE | ST_EXIT_MAIL;
 	job->job_exit_action = ST_EXIT_DISABLE | ST_EXIT_MAIL;
@@ -366,12 +371,12 @@ char		*fmri = NULL;
 	if (job_update(job) == -1)
 		goto err;
 
-	return job;
+	return (job);
 
 err:
 	free(fmri);
 	free_job(job);
-	return NULL;
+	return (NULL);
 }
 
 int
@@ -382,7 +387,8 @@ unserialise_job(job, buf, sz)
 {
 nvlist_t	*nvl = NULL;
 int32_t		 ct, ca1, ca2, ctid;
-char		*start = NULL, *stop = NULL, *proj = NULL, *fmri = NULL, *username;
+char		*start = NULL, *stop = NULL, *proj = NULL,
+		*fmri = NULL, *username;
 uchar_t		*rctls;
 uint_t		 nrctls;
 
@@ -392,23 +398,27 @@ uint_t		 nrctls;
 		goto err;
 	}
 
-	if ((*job = calloc(1, sizeof(job_t))) == NULL) {
+	if ((*job = calloc(1, sizeof (job_t))) == NULL) {
 		logm(LOG_ERR, "unserialise_job: out of memory");
 		goto err;
 	}
 
-	if (	nvlist_lookup_int32(nvl, "id", &(*job)->job_id) ||
+	if (nvlist_lookup_int32(nvl, "id", &(*job)->job_id) ||
 		nvlist_lookup_string(nvl, "start", &start) ||
 		nvlist_lookup_string(nvl, "stop", &stop) ||
 		nvlist_lookup_uint32(nvl, "flags", &(*job)->job_flags) ||
-		nvlist_lookup_uint32(nvl, "exit_action", &(*job)->job_exit_action) ||
-		nvlist_lookup_uint32(nvl, "crash_action", &(*job)->job_crash_action) ||
-		nvlist_lookup_uint32(nvl, "fail_action", &(*job)->job_fail_action) ||
+		nvlist_lookup_uint32(nvl, "exit_action",
+			&(*job)->job_exit_action) ||
+		nvlist_lookup_uint32(nvl, "crash_action",
+			&(*job)->job_crash_action) ||
+		nvlist_lookup_uint32(nvl, "fail_action",
+			&(*job)->job_fail_action) ||
 		nvlist_lookup_int32(nvl, "cron_type", &ct) ||
 		nvlist_lookup_int32(nvl, "cron_arg1", &ca1) ||
 		nvlist_lookup_int32(nvl, "cron_arg2", &ca2)) {
 
-		logm(LOG_ERR, "unserialise_job: cannot unserialise: %s", strerror(errno));
+		logm(LOG_ERR, "unserialise_job: cannot unserialise: %s",
+			strerror(errno));
 		goto err;
 	}
 
@@ -429,16 +439,19 @@ uint_t		 nrctls;
 	char		*name;
 		if (nvlist_lookup_string(nvl, "name", &name) ||
 		    nvlist_lookup_int32(nvl, "user", &uid)) {
-			logm(LOG_ERR, "unserialise_job: found neither fmri nor name/uid");
+			logm(LOG_ERR, "unserialise_job: "
+			    "found neither fmri nor name/uid");
 			goto err;
 		}
 
 		if ((pwd = getpwuid(uid)) == NULL) {
-			logm(LOG_ERR, "unserialise_job: couldn't find user %d", (int) uid);
+			logm(LOG_ERR, "unserialise_job: "
+			    "couldn't find user %d", (int)uid);
 			goto err;
 		}
 
-		if (asprintf(&(*job)->job_fmri, "job:/%s/%s", pwd->pw_name, name) == -1) {
+		if (asprintf(&(*job)->job_fmri, "job:/%s/%s",
+				pwd->pw_name, name) == -1) {
 			logm(LOG_ERR, "unserialise_job: out of memory");
 			goto err;
 		}
@@ -456,13 +469,14 @@ uint_t		 nrctls;
 
 	if (nvlist_lookup_byte_array(nvl, "rctls", &rctls, &nrctls) == 0) {
 		/*LINTED*/
-		(*job)->job_nrctls = nrctls / sizeof(job_rctl_t);
-		if (((*job)->job_rctls = calloc(nrctls, sizeof(job_rctl_t))) == NULL) {
+		(*job)->job_nrctls = nrctls / sizeof (job_rctl_t);
+		if (((*job)->job_rctls = calloc(nrctls,
+				sizeof (job_rctl_t))) == NULL) {
 			logm(LOG_ERR, "job_update: out of memory");
 			goto err;
 		}
 
-		bcopy(rctls, (*job)->job_rctls, sizeof(job_rctl_t) * nrctls);
+		bcopy(rctls, (*job)->job_rctls, sizeof (job_rctl_t) * nrctls);
 	} else {
 		(*job)->job_nrctls = 0;
 	}
@@ -485,14 +499,14 @@ uint_t		 nrctls;
 	}
 
 	(void) nvlist_free(nvl);
-	return 0;
+	return (0);
 
 err:
 	if (nvl)
 		nvlist_free(nvl);
 
 	free_job(*job);
-	return -1;
+	return (-1);
 }
 
 job_t *
@@ -504,11 +518,11 @@ DB_TXN		*txn = NULL;
 job_t		*job = NULL;
 int		 err;
 
-	bzero(&key, sizeof(key));
-	bzero(&data, sizeof(data));
+	bzero(&key, sizeof (key));
+	bzero(&data, sizeof (data));
 
 	key.data = &id;
-	key.size = sizeof(id);
+	key.size = sizeof (id);
 
 	data.flags = DB_DBT_MALLOC;
 
@@ -537,13 +551,13 @@ int		 err;
 	if (unserialise_job(&job, data.data, data.size) == -1)
 		goto err;
 
-	return job;
+	return (job);
 
 err:
 	if (txn)
 		(void) txn->abort(txn);
 	free_job(job);
-	return NULL;
+	return (NULL);
 }
 
 struct find_fmri_data {
@@ -563,25 +577,25 @@ char const		*p, *q;
 	/*
 	 * Check for an exact match.
 	 */
-	if (!strcmp(data->fmri, job->job_fmri)) {
+	if (strcmp(data->fmri, job->job_fmri) == 0) {
 		data->id = job->job_id;
 		data->nfound++;
-		return 0;
+		return (0);
 	}
 
 	/*
 	 * Sanity: if the job starts with job:/ and wasn't an exact match,
 	 * then it can't exist.
 	 */
-	if (!strncmp(data->fmri, "job:/", 5))
-		return 0;
+	if (strncmp(data->fmri, "job:/", 5) == 0)
+		return (0);
 
 	/*
 	 * If the spec is longer than the FMRI, it can't possibly match.
 	 * Subtract 4 because the partial FMRI can't match the "job:".
 	 */
 	if (strlen(data->fmri) > strlen(job->job_fmri) - 4)
-		return 0;
+		return (0);
 
 	/*
 	 * Start at the end of the string, and match backwards.  Every time
@@ -591,13 +605,13 @@ char const		*p, *q;
 	q = job->job_fmri + strlen(job->job_fmri) - 1;
 	for (; p >= data->fmri && q >= job->job_fmri; --p, --q) {
 		if (*p != *q)
-			return 0;
+			return (0);
 
 		if (*p == '/' && *q != '/')
-			return 0;
+			return (0);
 
 		if (*q == '/' && *p != '/')
-			return 0;
+			return (0);
 	}
 
 	/*
@@ -605,7 +619,7 @@ char const		*p, *q;
 	 * must be a / before it.
 	 */
 	if (*q != '/')
-		return 0;
+		return (0);
 
 	/*
 	 * Match!
@@ -613,7 +627,7 @@ char const		*p, *q;
 	data->id = job->job_id;
 	data->nfound++;
 
-	return 0;
+	return (0);
 }
 
 job_t *
@@ -621,17 +635,17 @@ find_job_fmri(fmri)
 	char const	*fmri;
 {
 struct find_fmri_data	data;
-	bzero(&data, sizeof(data));
+	bzero(&data, sizeof (data));
 	data.fmri = fmri;
 
 	if (job_enumerate(find_job_fmri_callback, &data) == -1)
 		logm(LOG_WARNING, "find_job_fmri: job_enumerate failed");
 
 	if (data.nfound != 1) {
-		return NULL;
+		return (NULL);
 	}
 
-	return find_job(data.id);
+	return (find_job(data.id));
 }
 
 int
@@ -642,10 +656,10 @@ DBT	 key;
 DB_TXN	*txn = NULL;
 int	 err;
 
-	bzero(&key, sizeof(key));
+	bzero(&key, sizeof (key));
 
 	key.data = &job->job_id;
-	key.size = sizeof(job->job_id);
+	key.size = sizeof (job->job_id);
 
 	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
 		logm(LOG_ERR, "delete_job: env txn_begin failed: %s",
@@ -667,12 +681,12 @@ int	 err;
 	}
 
 	sched_job_deleted(job);
-	return 0;
+	return (0);
 
 err:
 	if (txn)
 		(void) txn->abort(txn);
-	return -1;
+	return (-1);
 }
 
 int
@@ -687,7 +701,7 @@ int	 ret;
 	if (!(job->job_flags & JOB_MAINTENANCE))
 		sched_job_enabled(job);
 
-	return ret;
+	return (ret);
 }
 
 int
@@ -700,7 +714,7 @@ int	 ret;
 	ret = job_update(job);
 
 	sched_job_disabled(job);
-	return ret;
+	return (ret);
 }
 
 int
@@ -713,7 +727,7 @@ int	 ret;
 	job->job_contract = ctid;
 	ret = job_update(job);
 
-	return ret;
+	return (ret);
 }
 
 int
@@ -726,7 +740,7 @@ int	 ret;
 	job->job_exit_action = flags;
 	ret = job_update(job);
 
-	return ret;
+	return (ret);
 }
 
 int
@@ -739,7 +753,7 @@ int	 ret;
 	job->job_crash_action = flags;
 	ret = job_update(job);
 
-	return ret;
+	return (ret);
 }
 
 int
@@ -752,7 +766,7 @@ int	 ret;
 	job->job_fail_action = flags;
 	ret = job_update(job);
 
-	return ret;
+	return (ret);
 }
 
 int
@@ -764,13 +778,13 @@ char	*news;
 int	 ret;
 
 	if ((news = strdup(method)) == NULL)
-		return -1;
+		return (-1);
 
 	free(job->job_start_method);
 	job->job_start_method = news;
 
 	ret = job_update(job);
-	return ret;
+	return (ret);
 }
 
 int
@@ -782,13 +796,13 @@ char	*news;
 int	 ret;
 
 	if ((news = strdup(method)) == NULL)
-		return -1;
+		return (-1);
 
 	free(job->job_stop_method);
 	job->job_stop_method = news;
 
 	ret = job_update(job);
-	return ret;
+	return (ret);
 }
 
 int
@@ -802,17 +816,17 @@ job_t	*ejob;
 
 	if ((ejob = find_job_fmri(fmri)) != NULL) {
 		free_job(ejob);
-		return -1;
+		return (-1);
 	}
 
 	if ((news = strdup(fmri)) == NULL)
-		return -1;
+		return (-1);
 
 	free(job->job_fmri);
 	job->job_fmri = news;
 
 	ret = job_update(job);
-	return ret;
+	return (ret);
 }
 
 /*
@@ -835,49 +849,65 @@ nvlist_t	*nvl = NULL;
 		goto err;
 	}
 
-	if (	nvlist_add_int32(nvl, "id", job->job_id) != 0 ||
-		nvlist_add_string(nvl, "username", job->job_username) != 0 ||
-		nvlist_add_string(nvl, "fmri", job->job_fmri) != 0 ||
-		nvlist_add_string(nvl, "start", job->job_start_method) != 0 ||
-		nvlist_add_string(nvl, "stop", job->job_stop_method) != 0 ||
-		nvlist_add_uint32(nvl, "flags", job->job_flags) != 0 ||
-		nvlist_add_uint32(nvl, "exit_action", job->job_exit_action) != 0 ||
-		nvlist_add_uint32(nvl, "crash_action", job->job_crash_action) != 0 ||
-		nvlist_add_uint32(nvl, "fail_action", job->job_fail_action) != 0 ||
-		nvlist_add_int32(nvl, "ctid", (int) job->job_contract) != 0 ||
-		nvlist_add_int32(nvl, "cron_type", (int32_t) job->job_schedule.cron_type) != 0 ||
-		nvlist_add_int32(nvl, "cron_arg1", (int32_t) job->job_schedule.cron_arg1) != 0 ||
-		nvlist_add_int32(nvl, "cron_arg2", (int32_t) job->job_schedule.cron_arg2) != 0) {
+	if (nvlist_add_int32(nvl, "id", job->job_id) != 0 ||
+		nvlist_add_string(nvl, "username",
+			job->job_username) != 0 ||
+		nvlist_add_string(nvl, "fmri",
+			job->job_fmri) != 0 ||
+		nvlist_add_string(nvl, "start",
+			job->job_start_method) != 0 ||
+		nvlist_add_string(nvl, "stop",
+			job->job_stop_method) != 0 ||
+		nvlist_add_uint32(nvl, "flags",
+			job->job_flags) != 0 ||
+		nvlist_add_uint32(nvl, "exit_action",
+			job->job_exit_action) != 0 ||
+		nvlist_add_uint32(nvl, "crash_action",
+			job->job_crash_action) != 0 ||
+		nvlist_add_uint32(nvl, "fail_action",
+			job->job_fail_action) != 0 ||
+		nvlist_add_int32(nvl, "ctid",
+			(int)job->job_contract) != 0 ||
+		nvlist_add_int32(nvl, "cron_type",
+			(int32_t)job->job_schedule.cron_type) != 0 ||
+		nvlist_add_int32(nvl, "cron_arg1",
+			(int32_t)job->job_schedule.cron_arg1) != 0 ||
+		nvlist_add_int32(nvl, "cron_arg2",
+			(int32_t)job->job_schedule.cron_arg2) != 0) {
 
-		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
+		logm(LOG_ERR, "job_update: cannot serialise: %s",
+			strerror(errno));
 		goto err;
 	}
 
-	if (job->job_nrctls && nvlist_add_byte_array(nvl, "rctls", 
-		(u_char *) job->job_rctls,
-		sizeof(job_rctl_t) * job->job_nrctls) != 0) {
+	if (job->job_nrctls && nvlist_add_byte_array(nvl, "rctls",
+		(uchar_t *)job->job_rctls,
+		sizeof (job_rctl_t) * job->job_nrctls) != 0) {
 
-		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
+		logm(LOG_ERR, "job_update: " "cannot serialise: %s",
+			strerror(errno));
 		goto err;
 	}
 
 	if (job->job_project) {
 		if (nvlist_add_string(nvl, "project", job->job_project) != 0) {
-			logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
+			logm(LOG_ERR, "job_update: " "cannot serialise: %s",
+				strerror(errno));
 			goto err;
 		}
 	}
 
 	if (nvlist_pack(nvl, &xbuf, &size, NV_ENCODE_NATIVE, 0)) {
-		logm(LOG_ERR, "job_update: cannot serialise: %s", strerror(errno));
+		logm(LOG_ERR, "job_update: " "cannot serialise: %s",
+			strerror(errno));
 		goto err;
 	}
 
-	bzero(&key, sizeof(key));
-	bzero(&data, sizeof(data));
+	bzero(&key, sizeof (key));
+	bzero(&data, sizeof (data));
 
 	key.data = &job->job_id;
-	key.size = sizeof(job->job_id);
+	key.size = sizeof (job->job_id);
 
 	data.data = xbuf;
 	data.size = size;
@@ -906,7 +936,7 @@ nvlist_t	*nvl = NULL;
 	nvlist_free(nvl);
 	free(xbuf);
 
-	return 0;
+	return (0);
 
 err:
 	if (txn)
@@ -914,7 +944,7 @@ err:
 
 	nvlist_free(nvl);
 	free(xbuf);
-	return -1;
+	return (-1);
 }
 
 void
@@ -935,7 +965,7 @@ job_enumerate(cb, udata)
 	job_enumerate_callback	 cb;
 	void			*udata;
 {
-	return job_enumerate_user(NULL, cb, udata);
+	return (job_enumerate_user(NULL, cb, udata));
 }
 
 int
@@ -950,8 +980,8 @@ int	 err;
 DBT	 key, data;
 job_t	*job = NULL;
 
-	bzero(&key, sizeof(key));
-	bzero(&data, sizeof(data));
+	bzero(&key, sizeof (key));
+	bzero(&data, sizeof (data));
 
 	key.flags = DB_DBT_REALLOC;
 	data.flags = DB_DBT_REALLOC;
@@ -991,7 +1021,7 @@ job_t	*job = NULL;
 	free(data.data);
 	(void) curs->close(curs);
 	(void) txn->commit(txn, 0);
-	return 0;
+	return (0);
 
 err:
 	free(key.data);
@@ -1005,7 +1035,7 @@ err:
 
 	free_job(job);
 
-	return -1;
+	return (-1);
 }
 
 int
@@ -1018,7 +1048,7 @@ job_unschedule(job)
 
 	sched_job_unscheduled(job);
 
-	return 0;
+	return (0);
 }
 
 int
@@ -1028,9 +1058,10 @@ job_set_maintenance(job, reason)
 {
 	job->job_flags |= JOB_MAINTENANCE;
 	if (job_update(job) == -1)
-		logm(LOG_ERR, "job_set_maintenance: warning: job_update failed");
+		logm(LOG_ERR, "job_set_maintenance: "
+			"warning: job_update failed");
 
-	return 0;
+	return (0);
 }
 
 int
@@ -1039,12 +1070,13 @@ job_clear_maintenance(job)
 {
 	job->job_flags &= ~JOB_MAINTENANCE;
 	if (job_update(job) == -1)
-		logm(LOG_ERR, "job_clear_maintenance: warning: job_update failed");
+		logm(LOG_ERR, "job_clear_maintenance: "
+			"warning: job_update failed");
 
 	if (job->job_flags & JOB_ENABLED)
 		sched_job_enabled(job);
 
-	return 0;
+	return (0);
 }
 int
 job_set_schedule(job, sched)
@@ -1062,7 +1094,7 @@ char	 s[64];
 
 	/* Try to parse the sched into a cron_t. */
 
-	bzero(&cron, sizeof(cron));
+	bzero(&cron, sizeof (cron));
 	if (strcmp(sched, "every minute") == 0) {
 		cron.cron_type = CRON_EVERY_MINUTE;
 	} else if (sscanf(sched, "every hour at %d", &i) == 1) {
@@ -1099,7 +1131,7 @@ char	 s[64];
 
 		cron.cron_type = CRON_EVERY_WEEK;
 		cron.cron_arg2 = (i * 60) + j;
-		
+
 		if (strcasecmp(s, "sunday") == 0)
 			cron.cron_arg1 = 0;
 		else if (strcasecmp(s, "monday") == 0)
@@ -1118,27 +1150,27 @@ char	 s[64];
 			errno = EINVAL;
 			goto err;
 		}
-	} else if (sscanf(sched, "in %d %15s", &i, s) == 1 || 
-	           sscanf(sched, "in %d minute", &i) == 1) {
-		if (!strcmp(s, "minutes") || !strcmp(s, "minute")) {
+	} else if (sscanf(sched, "in %d %15s", &i, s) == 2) {
+		if (strcmp(s, "minutes") == 0 || strcmp(s, "minute") == 0) {
 			cron.cron_type = CRON_ABSOLUTE;
 			cron.cron_arg1 = current_time + (i * 60);
-		} else if (!strcmp(s, "hours") || !strcmp(s, "hour")) {
+		} else if (strcmp(s, "hours") == 0 || strcmp(s, "hour") == 0) {
 			cron.cron_type = CRON_ABSOLUTE;
 			cron.cron_arg1 = current_time + (i * 60 * 60);
-		} else if (!strcmp(s, "days") || !strcmp(s, "day")) {
+		} else if (strcmp(s, "days") == 0 || strcmp(s, "day") == 0) {
 			cron.cron_type = CRON_ABSOLUTE;
 			cron.cron_arg1 = current_time + (i * 60 * 60 * 24);
-		} else if (!strcmp(s, "weeks") || !strcmp(s, "week")) {
+		} else if (strcmp(s, "weeks") == 0 || strcmp(s, "week") == 0) {
 			cron.cron_type = CRON_ABSOLUTE;
 			cron.cron_arg1 = current_time + (i * 60 * 60 * 24 * 7);
 		} else {
 			errno = EINVAL;
 			goto err;
 		}
-	} else if (sscanf(sched, "at %d-%d-%d %d:%d", &y, &mo, &d, &h, &mi) == 5) {
+	} else if (sscanf(sched, "at %d-%d-%d %d:%d",
+			&y, &mo, &d, &h, &mi) == 5) {
 	struct tm	tm;
-		bzero(&tm, sizeof(tm));
+		bzero(&tm, sizeof (tm));
 		tm.tm_year = y - 1900;
 		tm.tm_mon = mo - 1;
 		tm.tm_mday = d;
@@ -1179,10 +1211,10 @@ char	 s[64];
 
 	sched_job_scheduled(job);
 
-	return 0;
+	return (0);
 
 err:
-	return -1;
+	return (-1);
 }
 
 char *
@@ -1203,44 +1235,46 @@ int		 a1, a2;
 		t = a1;
 		tm = gmtime(&t);
 		(void) strcpy(buf, "at ");
-		(void) strftime(buf + 3, sizeof(buf) - 3, "%Y-%m-%d %H:%M", tm);
-		return buf;
+		(void) strftime(buf + 3, sizeof (buf) - 3,
+			"%Y-%m-%d %H:%M", tm);
+		return (buf);
 
 	case CRON_EVERY_MINUTE:
 		(void) strcpy(buf, "every minute");
-		return buf;
+		return (buf);
 
 	case CRON_EVERY_HOUR:
-		(void) snprintf(buf, sizeof buf, "every hour at %02d", a1);
-		return buf;
+		(void) snprintf(buf, sizeof (buf), "every hour at %02d", a1);
+		return (buf);
 
 	case CRON_EVERY_DAY:
 		min = a1 % 60;
 		hr = a1 / 60;
-		(void) snprintf(buf, sizeof buf, "every day at %02d:%02d", hr, min);
-		return buf;
+		(void) snprintf(buf, sizeof (buf),
+			"every day at %02d:%02d", hr, min);
+		return (buf);
 
 	case CRON_EVERY_WEEK:
 		(void) strcpy(buf, "every ");
 		switch (a1) {
-		case 0: (void) strlcat(buf, "Sunday", sizeof buf); break;
-		case 1: (void) strlcat(buf, "Monday", sizeof buf); break;
-		case 2: (void) strlcat(buf, "Tuesday", sizeof buf); break;
-		case 3: (void) strlcat(buf, "Wednesday", sizeof buf); break;
-		case 4: (void) strlcat(buf, "Thursday", sizeof buf); break;
-		case 5: (void) strlcat(buf, "Friday", sizeof buf); break;
-		case 6: (void) strlcat(buf, "Saturday", sizeof buf); break;
+		case 0: (void) strlcat(buf, "Sunday", sizeof (buf)); break;
+		case 1: (void) strlcat(buf, "Monday", sizeof (buf)); break;
+		case 2: (void) strlcat(buf, "Tuesday", sizeof (buf)); break;
+		case 3: (void) strlcat(buf, "Wednesday", sizeof (buf)); break;
+		case 4: (void) strlcat(buf, "Thursday", sizeof (buf)); break;
+		case 5: (void) strlcat(buf, "Friday", sizeof (buf)); break;
+		case 6: (void) strlcat(buf, "Saturday", sizeof (buf)); break;
 		}
 
 
 		min = a2 % 60;
 		hr = a2 / 60;
-		(void) snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+		(void) snprintf(buf + strlen(buf), sizeof (buf) - strlen(buf),
 				" at %02d:%02d", hr, min);
-		return buf;
+		return (buf);
 
 	default:
-		return "unknown";
+		return ("unknown");
 	}
 }
 
@@ -1253,36 +1287,41 @@ static char	buf[128];
 size_t		i = 0;
 
 	if (when <= 0)
-		return "a very short time";
+		return ("a very short time");
 
 	if (when > (60*60*24*7)) {
-		(void) snprintf(buf + i, sizeof(buf) - i, "%dw", (when / (60 * 60 * 24 * 7)));
+		(void) snprintf(buf + i, sizeof (buf) - i,
+			"%dw", (when / (60 * 60 * 24 * 7)));
 		i += strlen(buf + i);
 		when %= (60 * 60 * 24 * 7);
 	}
 
 	if (when > (60*60*24)) {
-		(void) snprintf(buf + i, sizeof(buf) - i, "%dd", (when / (60 * 60 * 24)));
+		(void) snprintf(buf + i, sizeof (buf) - i,
+			"%dd", (when / (60 * 60 * 24)));
 		i += strlen(buf + i);
 		when %= (60 * 60 * 24);
 	}
 
 	if (when > (60*60)) {
-		(void) snprintf(buf + i, sizeof(buf) - i, "%dh", (when / (60 * 60)));
+		(void) snprintf(buf + i, sizeof (buf) - i,
+			"%dh", (when / (60 * 60)));
 		i += strlen(buf + i);
 		when %= (60 * 60);
 	}
 
 	if (when > 60) {
-		(void) snprintf(buf + i, sizeof(buf) - i, "%dm", (when / 60));
+		(void) snprintf(buf + i, sizeof (buf) - i,
+			"%dm", (when / 60));
 		i += strlen(buf + i);
 		when %= 60;
 	}
 
 	if (when)
-		(void) snprintf(buf + i, sizeof(buf) - i, "%ds", when);
+		(void) snprintf(buf + i, sizeof (buf) - i,
+			"%ds", when);
 
-	return buf;
+	return (buf);
 }
 
 int
@@ -1290,7 +1329,7 @@ job_set_lasterr(job, err)
 	job_t		*job;
 	char const	*err;
 {
-	return 0;
+	return (0);
 }
 
 rctl_qty_t
@@ -1304,10 +1343,10 @@ int	 i;
 		if (strcmp(job->job_rctls[i].jr_name, name))
 			continue;
 
-		return job->job_rctls[i].jr_value;
+		return (job->job_rctls[i].jr_value);
 	}
 
-	return -1;
+	return (-1);
 }
 
 int
@@ -1320,14 +1359,14 @@ job_rctl_t	*nr;
 int		 newn;
 
 	if (job->job_rctls == NULL) {
-		return 0;
+		return (0);
 	}
 
 	/*
 	 * We could allocate nrctls-1 here, but we don't actually know if we'll
 	 * be removing an rctl.
 	 */
-	if ((nr = calloc(sizeof(*nr), job->job_nrctls)) == NULL) {
+	if ((nr = calloc(sizeof (*nr), job->job_nrctls)) == NULL) {
 		logm(LOG_ERR, "job_clear_rctl: out of memory");
 		goto err;
 	}
@@ -1337,7 +1376,7 @@ int		 newn;
 			newn--;
 			continue;
 		}
-		bcopy(&job->job_rctls[i], &nr[j], sizeof(job_rctl_t));
+		bcopy(&job->job_rctls[i], &nr[j], sizeof (job_rctl_t));
 		j++;
 	}
 
@@ -1350,11 +1389,11 @@ int		 newn;
 		goto err;
 	}
 
-	return 0;
+	return (0);
 
 err:
 	free(nr);
-	return -1;
+	return (-1);
 }
 
 int
@@ -1377,17 +1416,18 @@ job_rctl_t	*nr = NULL;
 			goto err;
 		}
 
-		return 0;
+		return (0);
 	}
 
-	if ((nr = xrecalloc(job->job_rctls, job->job_nrctls, job->job_nrctls + 1,
-					sizeof(job_rctl_t))) == NULL) {
+	if ((nr = xrecalloc(job->job_rctls,
+			job->job_nrctls, job->job_nrctls + 1,
+			sizeof (job_rctl_t))) == NULL) {
 		logm(LOG_ERR, "job_set_rctl: out of memory");
 		goto err;
 	}
 
-	(void) strlcpy(nr[job->job_nrctls].jr_name, name, 
-			sizeof(nr[job->job_nrctls].jr_name));
+	(void) strlcpy(nr[job->job_nrctls].jr_name, name,
+			sizeof (nr[job->job_nrctls].jr_name));
 	nr[job->job_nrctls].jr_value = value;
 
 	job->job_rctls = nr;
@@ -1397,11 +1437,11 @@ job_rctl_t	*nr = NULL;
 		goto err;
 	}
 
-	return 0;
+	return (0);
 
 err:
 	free(nr);
-	return -1;
+	return (-1);
 }
 
 int
@@ -1410,10 +1450,10 @@ is_valid_rctl(name)
 {
 rctlblk_t	*blk = alloca(rctlblk_size());
 char		 rname[64];
-	(void) snprintf(rname, sizeof rname, "process.%s", name);
+	(void) snprintf(rname, sizeof (rname), "process.%s", name);
 	if (getrctl(rname, NULL, blk, RCTL_FIRST) == -1)
-		return 0;
-	return 1;
+		return (0);
+	return (1);
 }
 
 int
@@ -1421,18 +1461,18 @@ get_rctl_type(name)
 	char const	*name;
 {
 rctlblk_t	*blk = alloca(rctlblk_size());
-u_int		 fl;
+uint_t		 fl;
 char		 rname[64];
-	(void) snprintf(rname, sizeof rname, "process.%s", name);
+	(void) snprintf(rname, sizeof (rname), "process.%s", name);
 	if (getrctl(rname, NULL, blk, RCTL_FIRST) == -1)
-		return RCTL_GLOBAL_COUNT;
-	
+		return (RCTL_GLOBAL_COUNT);
+
 	fl = rctlblk_get_global_flags(blk);
 	if (fl & RCTL_GLOBAL_BYTES)
-		return RCTL_GLOBAL_BYTES;
+		return (RCTL_GLOBAL_BYTES);
 	if (fl & RCTL_GLOBAL_SECONDS)
-		return RCTL_GLOBAL_SECONDS;
-	return RCTL_GLOBAL_COUNT;
+		return (RCTL_GLOBAL_SECONDS);
+	return (RCTL_GLOBAL_COUNT);
 }
 
 static char const *
@@ -1450,8 +1490,8 @@ char const *const names[] = {
 		i++;
 	}
 
-	(void) snprintf(res, sizeof res, "%.2lf%s", d, names[i]);
-	return res;
+	(void) snprintf(res, sizeof (res), "%.2lf%s", d, names[i]);
+	return (res);
 }
 
 static char const *
@@ -1460,42 +1500,42 @@ _format_seconds(n)
 {
 char		t[16];
 static char	res[64];
-	
-	bzero(res, sizeof(res));
+
+	bzero(res, sizeof (res));
 	if (n >= (60 * 60 * 24 * 7)) {
-		/*LINTED*/
-		(void) snprintf(t, sizeof t, "%dw", (int) (n / (60 * 60 * 24 * 7)));
-		(void) strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof (t), "%" PRIu64 "w",
+			(uint64_t)(n / (60 * 60 * 24 * 7)));
+		(void) strlcat(res, t, sizeof (res));
 		n %= (60 * 60 * 24 * 7);
 	}
 
 	if (n >= (60 * 60 * 24)) {
-		/*LINTED*/
-		(void) snprintf(t, sizeof t, "%dd", (int) (n / (60 * 60 * 24)));
-		(void) strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof (t), "%" PRIu64 "d",
+			(uint64_t)(n / (60 * 60 * 24)));
+		(void) strlcat(res, t, sizeof (res));
 		n %= (60 * 60 * 24);
 	}
 
 	if (n >= (60 * 60)) {
-		/*LINTED*/
-		(void) snprintf(t, sizeof t, "%dh", (int) (n / (60 * 60)));
-		(void) strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof (t), "%" PRIu64 "h",
+			(uint64_t)(n / (60 * 60)));
+		(void) strlcat(res, t, sizeof (res));
 		n %= (60 * 60);
 	}
 
 	if (n >= 60) {
-		/*LINTED*/
-		(void) snprintf(t, sizeof t, "%dm", (int) (n / 60));
-		(void) strlcat(res, t, sizeof(res));
+		(void) snprintf(t, sizeof (t), "%" PRIu64 "m",
+		    (uint64_t)(n / 60));
+		(void) strlcat(res, t, sizeof (res));
 		n %= 60;
 	}
 
-	if (n > 0 || !strlen(res)) {
-		/*LINTED*/
-		(void) snprintf(t, sizeof t, "%ds", (int) n);
-		(void) strlcat(res, t, sizeof(res));
+	if (n > 0 || strlen(res) == 0) {
+		(void) snprintf(t, sizeof (t), "%" PRIu64 "s",
+		    (uint64_t)n);
+		(void) strlcat(res, t, sizeof (res));
 	}
-	return res;
+	return (res);
 }
 
 static char const *
@@ -1512,8 +1552,8 @@ char const *names = "KMGTPEZB";
 		i++;
 	}
 
-	(void) snprintf(res, sizeof res, "%.2lf%c", d, names[i]);
-	return res;
+	(void) snprintf(res, sizeof (res), "%.2lf%c", d, names[i]);
+	return (res);
 }
 
 char const *
@@ -1523,12 +1563,12 @@ format_rctl(qty, type)
 {
 	switch (type) {
 	case RCTL_GLOBAL_BYTES:
-		return _format_bytes(qty);
+		return (_format_bytes(qty));
 	case RCTL_GLOBAL_SECONDS:
-		return _format_seconds(qty);
+		return (_format_seconds(qty));
 	case RCTL_GLOBAL_COUNT:
 	default:
-		return _format_count(qty);
+		return (_format_count(qty));
 	}
 }
 
@@ -1547,7 +1587,7 @@ char	*np = NULL;
 		/*
 		 * Make sure the user is actually in the project.
 		 */
-		if (!inproj(job->job_username, proj, nssbuf, sizeof(nssbuf)))
+		if (!inproj(job->job_username, proj, nssbuf, sizeof (nssbuf)))
 			goto err;
 
 		if ((np = strdup(proj)) == NULL) {
@@ -1567,11 +1607,11 @@ char	*np = NULL;
 		goto err;
 	}
 
-	return 0;
+	return (0);
 
 err:
 	free(np);
-	return -1;
+	return (-1);
 }
 
 /*ARGSUSED*/
@@ -1581,7 +1621,7 @@ _njobs_for_user_callback(job, udata)
 	void	*udata;
 {
 	(*(int *)udata)++;
-	return 0;
+	return (0);
 }
 
 int
@@ -1590,8 +1630,8 @@ njobs_for_user(username)
 {
 int	n = 0;
 	if (job_enumerate_user(username, _njobs_for_user_callback, &n) == -1)
-		return -1;
-	return n;
+		return (-1);
+	return (n);
 }
 
 int
@@ -1601,26 +1641,26 @@ valid_fmri(fmri)
 char const	*p;
 
 	if (strncmp(fmri, "job:/", 5))
-		return 0;
+		return (0);
 
 	fmri += 5;
 	for (p = fmri; *p; ++p) {
 		if (*p == '/') {
 			if (p == fmri)
-				return 0;
+				return (0);
 
 			if (*(p + 1) == '/')
-				return 0;
+				return (0);
 		}
 
 		if (!isalnum(*p) && !index("-_/", *p))
-			return 0;
+			return (0);
 	}
 
 	if (*(p - 1) == '/')
-		return 0;
+		return (0);
 
-	return 1;
+	return (1);
 }
 
 time_t
@@ -1638,17 +1678,17 @@ int		 err;
 	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
 		logm(LOG_ERR, "get_boottime: txn start failed: %s",
 				db_strerror(errno));
-		return -1;
+		return (-1);
 	}
 
-	bzero(&key, sizeof key);
-	bzero(&data, sizeof data);
+	bzero(&key, sizeof (key));
+	bzero(&data, sizeof (data));
 
 	key.data = "last_boottime";
 	key.size = strlen(key.data);
 
 	data.data = &old;
-	data.size = data.ulen = sizeof(old);
+	data.size = data.ulen = sizeof (old);
 	data.flags = DB_DBT_USERMEM;
 
 	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
@@ -1656,7 +1696,7 @@ int		 err;
 			logm(LOG_ERR, "get_boottime: db get failed: %s",
 					db_strerror(err));
 			(void) txn->abort(txn);
-			return -1;
+			return (-1);
 		}
 	}
 
@@ -1666,16 +1706,16 @@ int		 err;
 		logm(LOG_ERR, "get_boottime: db put failed: %s",
 				db_strerror(err));
 		(void) txn->abort(txn);
-		return -1;
+		return (-1);
 	}
 
 	if ((err = txn->commit(txn, 0)) != 0) {
 		logm(LOG_ERR, "get_boottime: commit failed: %s",
 				db_strerror(err));
-		return -1;
+		return (-1);
 	}
 
-	return old;
+	return (old);
 }
 
 int
@@ -1688,10 +1728,9 @@ job_access(job, username, access)
 	 * Currently, we just allow users access to their own jobs and disallow
 	 * access to all other users.
 	 */
-	if (!strcmp(job->job_username, username))
-		return 1;
+	if (strcmp(job->job_username, username) == 0)
+		return (1);
 
 	/* Should support ACLs here... */
-	return 0;
+	return (0);
 }
-

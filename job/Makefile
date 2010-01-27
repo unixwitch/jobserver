@@ -1,10 +1,17 @@
+#
+# Copyright 2010 River Tarnell.  All rights reserved.
+# Use is subject to license terms.
+#
 CC		= cc
 LINT		= lint
+CSTYLE          = /opt/onbld/bin/cstyle
 CPPFLAGS	= -D_XOPEN_SOURCE=500 -D__EXTENSIONS__ 
 CFLAGS		= -xO0 -g -xc99=%none
 LDFLAGS		= 
-LINTFLAGS	= -asm -u -errhdr -errchk -Ncheck -Nlevel -errtags=yes -Xc99=%none -errsecurity=core
 LIBS		= -lnsl -lcurses
+LINTFLAGS	= -axsmu -errchk=%all,no%longptr64 -errhdr=%user -errtags=yes -Ncheck -Nlevel -errtags=yes -Xc99=%none -errsecurity=core
+#LINTFLAGS	= -asxmu -erroff=E_EQUALITY_NOT_ASSIGNMENT
+CSTYLEFLAGS	= -cpP
 
 OBJS	= job.o
 SRCS	= $(OBJS:.o=.c)
@@ -43,5 +50,8 @@ install:
 	for m in $(MANPAGES); do \
 		ginstall -o root -g root -m 0644 $$m $(DESTDIR)/opt/jobserver/man/man1; \
 	done
+
+style:
+	$(CSTYLE) $(CSTYLEFLAGS) $(SRCS) $(HDRS)
 
 .KEEP_STATE:

@@ -1,11 +1,8 @@
-/* Copyright (c) 2009 River Tarnell <river@loreley.flyingparchment.org.uk>. */
 /*
- * Permission is granted to anyone to use this software for any purpose,
- * including commercial applications, and to alter it and redistribute it
- * freely. This software is provided 'as-is', without any express or implied
- * warranty.
+ * Copyright 2010 River Tarnell.  All rights reserved.
+ * Use is subject to license terms.
  */
-  
+
 /*
  * Job client: allow users to interact with the jobserver.
  */
@@ -19,7 +16,6 @@
 #include	<stdlib.h>
 #include	<stdarg.h>
 #include	<ctype.h>
-#include	<pwd.h>
 #include	<unistd.h>
 #include	<xti.h>
 #include	<fcntl.h>
@@ -38,7 +34,7 @@ static int put_server(char const *, ...);
 static int vput_server(char const *, va_list);
 static reply_t *simple_command(char const *, ...);
 
-#define NARG 16
+#define	NARG 16
 static int split(char *, char **);
 
 static FILE *server_in, *server_out;
@@ -92,8 +88,11 @@ static int debug;
 
 static char const *bold = "", *red = "", *green = "", *blue = "", *reset = "";
 
-char const *u_list = "       job [-D] list|ls [-u <user>]\n";
-char const *u_add = "       job [-D] add [-e] [-o <prop>=<value>] [-S <schedule>] [-n <name>] <command>\n";
+char const *u_list =
+"job [-D] list|ls [-u <user>]\n";
+char const *u_add =
+"       job [-D] add [-e] [-o <prop>=<value>] "
+"[-S <schedule>] [-n <name>] <command>\n";
 char const *u_endis =
 "       job [-D] en[able] <fmri>\n"
 "       job [-D] dis[able] <fmri>\n";
@@ -136,10 +135,9 @@ usage()
 	(void) fprintf(stderr, "%s", u_quota);
 	(void) fprintf(stderr, "%s", u_start);
 	(void) fprintf(stderr, "%s", u_stop);
-	(void) fprintf(stderr, 
-"\nGlobal options:\n"
-"      -D      Enable debug mode.\n"
-);
+	(void) fprintf(stderr,
+	    "\nGlobal options:\n"
+	    "      -D      Enable debug mode.\n");
 }
 
 static int
@@ -151,16 +149,16 @@ ucred_t		*ucred = NULL;
 
 	if ((fd = t_open("/dev/ticotsord", O_RDWR, NULL)) == -1) {
 		t_error("job: connecting to server");
-		return -1;
+		return (-1);
 	}
 
 	if (t_bind(fd, NULL, NULL) == -1) {
 		t_error("job: connecting to server");
-		return -1;
+		return (-1);
 	}
 
-	bzero(&tcall, sizeof(tcall));
-	tcall.addr.maxlen = tcall.addr.len = sizeof("jobserver") - 1;
+	bzero(&tcall, sizeof (tcall));
+	tcall.addr.maxlen = tcall.addr.len = sizeof ("jobserver") - 1;
 	tcall.addr.buf = "jobserver";
 
 	if (t_connect(fd, &tcall, NULL) == -1) {
@@ -168,42 +166,44 @@ ucred_t		*ucred = NULL;
 		int	n;
 			if ((n = t_look(fd)) == T_DISCONNECT) {
 			struct t_discon	discon;
-				bzero(&discon, sizeof(discon));
+				bzero(&discon, sizeof (discon));
 				if (t_rcvdis(fd, &discon) == -1) {
 					t_error("job: connected to server");
-					return -1;
+					return (-1);
 				}
-				(void) fprintf(stderr, "job: connecting to server: %s\n",
-						strerror(discon.reason));
-				return -1;
+				(void) fprintf(stderr, "job: "
+				    "connecting to server: %s\n",
+				    strerror(discon.reason));
+				return (-1);
 			} else {
-				(void) fprintf(stderr, "job: connecting to server: %s\n",
-						t_strerror(n));
-				return -1;
+				(void) fprintf(stderr, "job: "
+				    "connecting to server: %s\n",
+				    t_strerror(n));
+				return (-1);
 			}
 		} else {
 			t_error("job: connecting to server");
-			return -1;
+			return (-1);
 		}
 	}
 
 	if (ioctl(fd, I_PUSH, "tirdwr") == -1) {
 		perror("job: ioctl(I_PUSH, tirdwr)");
 		t_close(fd);
-		return -1;
+		return (-1);
 	}
 
 	if (getpeerucred(fd, &ucred) == -1) {
 		perror("job: getpeerucred");
-		return -1;
+		return (-1);
 	}
 
 	if (ucred_geteuid(ucred) != 0) {
 		(void) fprintf(stderr, "job: jobserver has incorrect uid\n");
-		return -1;
+		return (-1);
 	}
 
-	return fd;
+	return (fd);
 }
 
 int
@@ -236,7 +236,7 @@ reply_t	*rep;
 
 		default:
 			usage();
-			return 1;
+			return (1);
 		}
 	}
 	argc -= optind;
@@ -244,51 +244,51 @@ reply_t	*rep;
 
 	if (argc < 1) {
 		usage();
-		return 1;
+		return (1);
 	}
 
 	if ((fd = server_connect()) == -1)
-		return 1;
+		return (1);
 
 	if ((server_in = fdopen(fd, "r")) == NULL) {
 		perror("job: fdopen");
-		return 1;
+		return (1);
 	}
 
 	if ((server_out = fdopen(fd, "w")) == NULL) {
 		perror("job: fdopen");
-		return 1;
+		return (1);
 	}
 
 	if ((rep = read_line()) == NULL)
-		return 1;
+		return (1);
 
 	if (rep->numeric != 200) {
 		(void) fprintf(stderr, "%s\n", rep->text);
-		return 1;
+		return (1);
 	}
 
 	(void) put_server("HELO 1");
 
 	if ((rep = read_line()) == NULL)
-		return 1;
+		return (1);
 
 	if (rep->numeric != 200) {
 		(void) fprintf(stderr, "%s\n", rep->text);
-		return 1;
+		return (1);
 	}
 
-	for (i = 0; i < sizeof cmds / sizeof *cmds; ++i) {
-		if (!strcmp(argv[0], cmds[i].cmd)) {
+	for (i = 0; i < sizeof (cmds) / sizeof (*cmds); ++i) {
+		if (strcmp(argv[0], cmds[i].cmd) == 0) {
 		int	ret;
 			ret = cmds[i].func(argc, argv);
-			simple_command("QUIT");
-			return ret;
+			(void) simple_command("QUIT");
+			return (ret);
 		}
 	}
 
 	usage();
-	return 1;
+	return (1);
 }
 
 int
@@ -297,12 +297,13 @@ c_schedule(argc, argv)
 	char	**argv;
 {
 	if (argc != 3) {
-		fprintf(stderr, "schedule: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_schedule);
-		return 1;
+		(void) fprintf(stderr, "schedule: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_schedule);
+		return (1);
 	}
 
-	simple_command("SCHD %s :%s", argv[1], argv[2]);
+	(void) simple_command("SCHD %s :%s", argv[1], argv[2]);
+	return 0;
 }
 
 int
@@ -319,26 +320,27 @@ int	c, stop = 0;
 
 		default:
 			(void) fprintf(stderr, "%s", u_unschedule);
-			return 1;
+			return (1);
 		}
 	}
 	argc -= optind;
 	argv += optind;
 
 	if (argc != 1) {
-		fprintf(stderr, "unschedule: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_unschedule);
-		return 1;
+		(void) fprintf(stderr, "unschedule: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_unschedule);
+		return (1);
 	}
 
 	if (stop)
-		simple_command("STOP %s", argv[0]);
-	simple_command("USHD %s", argv[0]);
+		(void) simple_command("STOP %s", argv[0]);
+	(void) simple_command("USHD %s", argv[0]);
+	return 0;
 }
 
 /*ARGSUSED*/
 int
-c_list (argc, argv)
+c_list(argc, argv)
 	int	  argc;
 	char	**argv;
 {
@@ -346,19 +348,18 @@ reply_t	*rep;
 char	*vec[NARG];
 int	 narg;
 int	 fmri_w = 0, state_w = 0, rstate_w = 0, i;
-uid_t	 uid;
 struct {
 	char	*fmri, *state, *rstate, *name;
 } *ents = NULL;
 int nents = 0;
 
 	if (argc != 1) {
-		fprintf(stderr, "list: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_list);
-		return 1;
+		(void) fprintf(stderr, "list: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_list);
+		return (1);
 	}
 
-	put_server("LIST");
+	(void) put_server("LIST");
 
 	while ((rep = read_line()) != NULL) {
 		switch (rep->numeric) {
@@ -368,13 +369,15 @@ int nents = 0;
 		case 201:
 			narg = split(rep->text, vec);
 			if (narg < 3) {
-				(void) fprintf(stderr, "job: malformed line from server\n");
-				return 1;
+				(void) fprintf(stderr, "job: "
+				    "malformed line from server\n");
+				return (1);
 			}
 
-			if ((ents = realloc(ents, sizeof(*ents) * (nents + 1))) == NULL) {
+			if ((ents = realloc(ents, sizeof (*ents) *
+			    (nents + 1))) == NULL) {
 				(void) fprintf(stderr, "out of memory\n");
-				return 1;
+				return (1);
 			}
 
 			ents[nents].fmri = vec[0];
@@ -391,10 +394,10 @@ int nents = 0;
 		case 202:
 			if (nents == 0) {
 				(void) printf("No jobs found.\n");
-				return 0;
+				return (0);
 			}
 
-			printf("%s%-*s %-*s FMRI%s\n",
+			(void) printf("%s%-*s %-*s FMRI%s\n",
 				bold,
 				state_w, "STATE",
 				rstate_w, "RSTATE",
@@ -403,50 +406,51 @@ int nents = 0;
 			for (i = 0; i < nents; ++i) {
 			char const	*scol, *rcol;
 
-				if (!strcmp(ents[i].state, "enabled"))
+				if (strcmp(ents[i].state, "enabled") == 0)
 					scol = green;
-				else if (!strcmp(ents[i].state, "scheduled/enabled"))
+				else if (strcmp(ents[i].state,
+				    "scheduled/enabled") == 0)
 					scol = blue;
 				else
 					scol = "";
 
-				if (!strcmp(ents[i].rstate, "maintenance"))
+				if (strcmp(ents[i].rstate, "maintenance") == 0)
 					rcol = red;
-				else if (!strcmp(ents[i].rstate, "running"))
+				else if (strcmp(ents[i].rstate, "running") == 0)
 					rcol = green;
 				else
 					rcol = "";
 
-				printf("%s%-*s%s %s%-*s%s %s\n",
+				(void) printf("%s%-*s%s %s%-*s%s %s\n",
 					scol, state_w, ents[i].state, reset,
 					rcol, rstate_w, ents[i].rstate, reset,
 					ents[i].fmri);
 			}
-			return 0;
+			return (0);
 
 		default:
 			(void) fprintf(stderr, "%s\n", rep->text);
-			return 1;
+			return (1);
 		}
 	}
 
 	(void) fprintf(stderr, "job: unexpected EOF\n");
-	return 1;
+	return (1);
 }
 
 int
-c_enable (argc, argv)
+c_enable(argc, argv)
 	int argc;
 	char **argv;
 {
 	if (argc != 2) {
-		fprintf(stderr, "enable: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_endis);
-		return 1;
+		(void) fprintf(stderr, "enable: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_endis);
+		return (1);
 	}
 
-	simple_command("CHNG %s ENABLED=1", argv[1]);
-	return 0;
+	(void) simple_command("CHNG %s ENABLED=1", argv[1]);
+	return (0);
 }
 
 int
@@ -455,13 +459,13 @@ c_stop(argc, argv)
 	char **argv;
 {
 	if (argc != 2) {
-		fprintf(stderr, "stop: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_stop);
-		return 1;
+		(void) fprintf(stderr, "stop: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_stop);
+		return (1);
 	}
 
-	simple_command("STOP %s", argv[1]);
-	return 0;
+	(void) simple_command("STOP %s", argv[1]);
+	return (0);
 }
 
 int
@@ -470,13 +474,13 @@ c_start(argc, argv)
 	char **argv;
 {
 	if (argc != 2) {
-		fprintf(stderr, "start: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_start);
-		return 1;
+		(void) fprintf(stderr, "start: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_start);
+		return (1);
 	}
 
-	simple_command("STRT %s", argv[1]);
-	return 0;
+	(void) simple_command("STRT %s", argv[1]);
+	return (0);
 }
 
 int
@@ -496,47 +500,48 @@ int	 c, raw = 0;
 
 		default:
 			(void) fprintf(stderr, "%s", u_limit);
-			return 1;
+			return (1);
 		}
 	}
 	argc -= optind;
 	argv += optind;
 
 	if (argc < 1 || argc > 3) {
-		fprintf(stderr, "limit: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_limit);
-		return 1;
+		(void) fprintf(stderr, "limit: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_limit);
+		return (1);
 	}
 
 	if (argc == 1) {
 	reply_t	*rep;
-		put_server("LISR %s%s", argv[0], raw ? " RAW" : "");
+		(void) put_server("LISR %s%s", argv[0], raw ? " RAW" : "");
 		while (rep = read_line()) {
 			switch (rep->numeric) {
 			case 200:
-				split(rep->text, vec);
+				(void) split(rep->text, vec);
 				(void) printf("%s = %s\n", vec[0], vec[1]);
 				break;
 
 			case 201:
-				return 0;
+				return (0);
 
 			default:
 				(void) printf("%s\n", rep->text);
-				return 1;
+				return (1);
 			}
 		}
 
 		(void) fprintf(stderr, "job: unexpected EOF\n");
-		return 1;
+		return (1);
 	} else if (argc == 2) {
 	reply_t	*rep;
-		rep = simple_command("GETR %s %s%s", argv[0], argv[1], raw ? " RAW" : "");
+		rep = simple_command("GETR %s %s%s",
+		    argv[0], argv[1], raw ? " RAW" : "");
 		(void) printf("%s = %s\n", argv[1], rep->text);
 	} else
-		simple_command("SETR %s %s %s", argv[0], argv[1], argv[2]);
-	
-	return 0;
+		(void) simple_command("SETR %s %s %s", argv[0], argv[1], argv[2]);
+
+	return (0);
 }
 
 int
@@ -545,14 +550,14 @@ c_unlimit(argc, argv)
 	char **argv;
 {
 	if (argc != 3) {
-		fprintf(stderr, "unlimit: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_limit);
-		return 1;
+		(void) fprintf(stderr, "unlimit: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_limit);
+		return (1);
 	}
 
-	simple_command("CLRR %s %s", argv[1], argv[2]);
-	
-	return 0;
+	(void) simple_command("CLRR %s %s", argv[1], argv[2]);
+
+	return (0);
 }
 
 int
@@ -561,49 +566,49 @@ c_quota(argc, argv)
 	char **argv;
 {
 	if (argc < 2 || argc > 3) {
-		fprintf(stderr, "quota: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_quota);
-		return 1;
+		(void) fprintf(stderr, "quota: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_quota);
+		return (1);
 	}
 
 	if (argc == 2) {
 	reply_t	*rep;
 		rep = simple_command("CONF %s", argv[1]);
-		printf("%s = %s\n", argv[1], rep->text);
+		(void) printf("%s = %s\n", argv[1], rep->text);
 	} else
-		simple_command("CONF %s %s", argv[1], argv[2]);
-	
-	return 0;
+		(void) simple_command("CONF %s %s", argv[1], argv[2]);
+
+	return (0);
 }
 
 int
-c_disable (argc, argv)
+c_disable(argc, argv)
 	int argc;
 	char **argv;
 {
 	if (argc != 2) {
-		fprintf(stderr, "enable: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_endis);
-		return 1;
+		(void) fprintf(stderr, "enable: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_endis);
+		return (1);
 	}
 
-	simple_command("CHNG %s ENABLED=0", argv[1]);
-	return 0;
+	(void) simple_command("CHNG %s ENABLED=0", argv[1]);
+	return (0);
 }
 
 int
-c_delete (argc, argv)
+c_delete(argc, argv)
 	int argc;
 	char **argv;
 {
 	if (argc != 2) {
-		fprintf(stderr, "delete: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_delete);
-		return 1;
+		(void) fprintf(stderr, "delete: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_delete);
+		return (1);
 	}
 
-	simple_command("DELE %s", argv[1]);
-	return 0;
+	(void) simple_command("DELE %s", argv[1]);
+	return (0);
 }
 
 int
@@ -612,17 +617,17 @@ c_clear(argc, argv)
 	char **argv;
 {
 	if (argc != 2) {
-		fprintf(stderr, "clear: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_clear);
-		return 1;
+		(void) fprintf(stderr, "clear: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_clear);
+		return (1);
 	}
 
-	simple_command("CLEA %s", argv[1]);
-	return 0;
+	(void) simple_command("CLEA %s", argv[1]);
+	return (0);
 }
 
 int
-c_show (argc, argv)
+c_show(argc, argv)
 	int argc;
 	char **argv;
 {
@@ -631,102 +636,107 @@ int	 first = 1;
 char	*vec[NARG];
 
 	if (argc != 2) {
-		fprintf(stderr, "show: wrong number of arguments\n\n");
-		fprintf(stderr, "%s", u_show);
-		return 1;
+		(void) fprintf(stderr, "show: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "%s", u_show);
+		return (1);
 	}
 
-	put_server("STAT %s", argv[1]);
+	(void) put_server("STAT %s", argv[1]);
 	while ((rep = read_line()) != NULL) {
 		if (*rep->text == ':')
 			rep->text++;
 
 		if (rep->numeric >= 500) {
 			(void) fprintf(stderr, "%s\n", rep->text);
-			return 1;
+			return (1);
 		}
 
 		switch (rep->numeric) {
-		case 201: (void) printf("%s%s%s:\n", bold, rep->text, reset); break;
+		case 201: (void) printf("%s%s%s:\n", bold, rep->text, reset);
+			break;
 		case 204: (void) printf("       state: %s\n", rep->text); break;
 		case 205: (void) printf("      rstate: %s\n", rep->text); break;
 		case 206: (void) printf("start method: %s\n", rep->text); break;
 		case 207: (void) printf(" stop method: %s\n", rep->text); break;
 		case 208: (void) printf("    schedule: %s\n", rep->text); break;
-		case 213: (void) printf("              (in %s)\n", rep->text); break;
+		case 213: (void) printf("              (in %s)\n", rep->text);
+			break;
 		case 209: (void) printf("     project: %s\n", rep->text); break;
 		case 210: (void) printf("     on exit: %s\n", rep->text); break;
 		case 211: (void) printf("     on fail: %s\n", rep->text); break;
 		case 212: (void) printf("    on crash: %s\n", rep->text); break;
 		}
 
+		if (rep->numeric == 299) {
+			free_reply(rep);
+			break;
+		}
+
 		free_reply(rep);
 
-		if (rep->numeric == 299)
-			break;
 	}
 
 	(void) printf("      limits:");
-	put_server("LISR %s", argv[1]);
+	(void) put_server("LISR %s", argv[1]);
 	while (rep = read_line()) {
 		switch (rep->numeric) {
 		case 200:
-			split(rep->text, vec);
+			(void) split(rep->text, vec);
 			if (first)
 				(void) printf(" %s = %s\n", vec[0], vec[1]);
 			else
-				(void) printf("              %s = %s\n", vec[0], vec[1]);
+				(void) printf("              "
+				    "%s = %s\n", vec[0], vec[1]);
 			first = 0;
 			break;
 
 		case 201:
 			if (first)
 				(void) printf(" -\n");
-			return 0;
+			return (0);
 
 		default:
 			(void) printf("%s\n", rep->text);
-			return 1;
+			return (1);
 		}
 	}
 
 	(void) fprintf(stderr, "job: unexpected EOF\n");
-	return 1;
+	return (1);
 }
 
 static int
-do_unset_property(id, prop)
-	int		 id;
-	char const	*prop;
+do_unset_property(fmri, prop)
+	char const	*fmri, *prop;
 {
 char	*key;
 reply_t	*rep;
 
-	if (!strcmp(prop, "start"))
+	if (strcmp(prop, "start") == 0)
 		key = "START";
-	else if (!strcmp(prop, "stop"))
+	else if (strcmp(prop, "stop") == 0)
 		key = "STOP";
-	else if (!strcmp(prop, "name"))
+	else if (strcmp(prop, "name") == 0)
 		key = "NAME";
-	else if (!strcmp(prop, "project"))
+	else if (strcmp(prop, "project") == 0)
 		key = "PROJECT";
-	else if (!strcmp(prop, "exit"))
+	else if (strcmp(prop, "exit") == 0)
 		key = "EXIT";
-	else if (!strcmp(prop, "fail"))
+	else if (strcmp(prop, "fail") == 0)
 		key = "FAIL";
-	else if (!strcmp(prop, "crash"))
+	else if (strcmp(prop, "crash") == 0)
 		key = "CRASH";
 	else
-		return -1;
+		return (-1);
 
-	rep = simple_command("USET %d %s", id, key);
+	rep = simple_command("USET %s %s", fmri, key);
 	if (rep->numeric != 200) {
 		(void) fprintf(stderr, "%s\n", rep->text);
 		exit(1);
 	}
 
 	free_reply(rep);
-	return 0;
+	return (0);
 }
 
 static int
@@ -738,22 +748,22 @@ do_set_property(fmri, prop, value)
 char	*key;
 reply_t	*rep;
 
-	if (!strcmp(prop, "start"))
+	if (strcmp(prop, "start") == 0)
 		key = "START";
-	else if (!strcmp(prop, "stop"))
+	else if (strcmp(prop, "stop") == 0)
 		key = "STOP";
-	else if (!strcmp(prop, "fmri"))
+	else if (strcmp(prop, "fmri") == 0)
 		key = "FMRI";
-	else if (!strcmp(prop, "project"))
+	else if (strcmp(prop, "project") == 0)
 		key = "PROJECT";
-	else if (!strcmp(prop, "exit"))
+	else if (strcmp(prop, "exit") == 0)
 		key = "EXIT";
-	else if (!strcmp(prop, "fail"))
+	else if (strcmp(prop, "fail") == 0)
 		key = "FAIL";
-	else if (!strcmp(prop, "crash"))
+	else if (strcmp(prop, "crash") == 0)
 		key = "CRASH";
 	else
-		return -1;
+		return (-1);
 
 	rep = simple_command("CHNG %s :%s=%s", fmri, key, value);
 	if (rep->numeric != 200) {
@@ -762,11 +772,11 @@ reply_t	*rep;
 	}
 
 	free_reply(rep);
-	return 0;
+	return (0);
 }
 
 int
-c_unset (argc, argv)
+c_unset(argc, argv)
 	int argc;
 	char **argv;
 {
@@ -775,7 +785,7 @@ char	*fmri;
 	if (argc < 2) {
 		(void) fprintf(stderr, "unset: not enough arguments\n");
 		(void) fprintf(stderr, "%s", u_set);
-		return 1;
+		return (1);
 	}
 
 	fmri = argv[1];
@@ -784,20 +794,21 @@ char	*fmri;
 
 	while (argc) {
 		if (do_unset_property(fmri, argv[0]) == -1) {
-			(void) fprintf(stderr, "set: unknown property \"%s\"\n", argv[0]); 
+			(void) fprintf(stderr, "set: "
+			    "unknown property \"%s\"\n", argv[0]);
 			(void) fprintf(stderr, "%s", u_set);
-			return 1;
+			return (1);
 		}
 
 		argc--;
 		argv++;
 	}
 
-	return 0;
+	return (0);
 }
 
 int
-c_set (argc, argv)
+c_set(argc, argv)
 	int argc;
 	char **argv;
 {
@@ -806,7 +817,7 @@ char	*fmri;
 	if (argc < 3) {
 		(void) fprintf(stderr, "set: not enough arguments\n");
 		(void) fprintf(stderr, "%s", u_set);
-		return 1;
+		return (1);
 	}
 
 	fmri = argv[1];
@@ -816,35 +827,37 @@ char	*fmri;
 	while (argc) {
 	char	*k = argv[0], *v;
 		if ((v = strchr(k, '=')) == NULL) {
-			(void) fprintf(stderr, "set: invalid prop=value pair \"%s\"\n", k);
+			(void) fprintf(stderr, "set: "
+			    "invalid prop=value pair \"%s\"\n", k);
 			(void) fprintf(stderr, "%s", u_set);
-			return 1;
+			return (1);
 		}
 
 		*v++ = 0;
 
 		if (do_set_property(fmri, k, v) == -1) {
-			(void) fprintf(stderr, "set: unknown property \"%s\"\n", k);
+			(void) fprintf(stderr, "set: "
+			    "unknown property \"%s\"\n", k);
 			(void) fprintf(stderr, "%s", u_set);
-			return 1;
+			return (1);
 		}
 
 		argc--;
 		argv++;
 	}
 
-	return 0;
+	return (0);
 }
 
 int
-c_add (argc, argv)
+c_add(argc, argv)
 	int	  argc;
 	char	**argv;
 {
 reply_t	*rep;
 int	 c, do_enable = 0;
 char	*schedule = NULL;
-char	*name = NULL, *p;
+char	*name = NULL;
 char	*id;
 size_t	 i;
 struct {
@@ -862,15 +875,16 @@ int nopts = 0;
 			break;
 
 		case 'o':
-			if ((opts = realloc(opts, sizeof(*opts) * (nopts + 1))) == NULL) {
+			if ((opts = realloc(opts,
+			    sizeof (*opts) * (nopts + 1))) == NULL) {
 				(void) fprintf(stderr, "out of memory");
-				return 1;
+				return (1);
 			}
 
 			opts[nopts].prop = optarg;
 			if ((opts[nopts].value = strchr(optarg, '=')) == NULL) {
 				usage();
-				return 1;
+				return (1);
 			}
 			*opts[nopts].value++ = 0;
 			nopts++;
@@ -882,22 +896,23 @@ int nopts = 0;
 
 		default:
 			(void) fprintf(stderr, "%s", u_add);
-			return 1;
+			return (1);
 		}
 	}
 	argc -= optind;
 	argv += optind;
 
 	if (schedule && do_enable) {
-		(void) fprintf(stderr, "add: only one of -S and -e may be specified\n");
+		(void) fprintf(stderr, "add: "
+		    "only one of -S and -e may be specified\n");
 		(void) fprintf(stderr, "%s", u_add);
-		return 1;
+		return (1);
 	}
 
 	if (argc > 2) {
 		(void) fprintf(stderr, "add: wrong number of arguments\n");
 		(void) fprintf(stderr, "%s", u_add);
-		return 1;
+		return (1);
 	}
 
 	if (argc > 1) {
@@ -910,7 +925,7 @@ int nopts = 0;
 	char	*p;
 		if ((name = strdup(argv[0])) == NULL) {
 			(void) fprintf(stderr, "out of memory\n");
-			return 1;
+			return (1);
 		}
 
 		/*
@@ -927,26 +942,26 @@ int nopts = 0;
 	(void) printf("New job FMRI is %s.\n", rep->text);
 	if ((id = strdup(rep->text)) == NULL) {
 		(void) fprintf(stderr, "out of memory\n");
-		return 1;
+		return (1);
 	}
 
-	simple_command("CHNG %s :START=%s", id, argv[0]);
+	(void) simple_command("CHNG %s :START=%s", id, argv[0]);
 
 	for (i = 0; i < nopts; ++i) {
-		if (do_set_property(opts[i].prop, opts[i].value) == -1) {
+		if (do_set_property(id, opts[i].prop, opts[i].value) == -1) {
 			(void) fprintf(stderr, "unrecognised property \"%s\"\n",
 					opts[i].prop);
 			(void) fprintf(stderr, "%s", u_add);
-			return 1;
+			return (1);
 		}
 	}
 
 	if (do_enable)
-		simple_command("CHNG %s ENABLED=1", id);
+		(void) simple_command("CHNG %s ENABLED=1", id);
 	else if (schedule)
-		simple_command("SCHD %s :%s", id, schedule);
+		(void) simple_command("SCHD %s :%s", id, schedule);
 
-	return 0;
+	return (0);
 }
 
 static reply_t *
@@ -956,13 +971,13 @@ int	 cont = 0, prev = 0;
 reply_t	*rep;
 char	 line[1024];
 
-	if ((rep = calloc(1, sizeof(*rep))) == NULL) {
+	if ((rep = calloc(1, sizeof (reply_t))) == NULL) {
 		(void) fprintf(stderr, "job: out of memory");
 		exit(1);
 	}
 
-	while (fgets(line, sizeof line, server_in) != NULL) {
-	char	*p = line;
+	while (fgets(line, sizeof (line), server_in) != NULL) {
+	char	*p;
 	int	 ocont = cont;
 		cont = 0;
 
@@ -973,7 +988,8 @@ char	 line[1024];
 
 
 		if (strlen(line) < 5) {
-			(void) fprintf(stderr, "job: malformed line from server\n");
+			(void) fprintf(stderr, "job: "
+			    "malformed line from server\n");
 			exit(1);
 		}
 
@@ -987,17 +1003,20 @@ char	 line[1024];
 			while (*p == ' ')
 				p++;
 		} else {
-			(void) fprintf(stderr, "job: malformed line from server\n");
+			(void) fprintf(stderr, "job: "
+			    "malformed line from server\n");
 			exit(1);
 		}
 
 		if (ocont) {
 			if (rep->numeric != prev) {
-				(void) fprintf(stderr, "job: malformed line from server\n");
+				(void) fprintf(stderr, "job: "
+				    "malformed line from server\n");
 				exit(1);
 			}
 
-			if ((rep->text = realloc(rep->text, strlen(rep->text) + 1 + strlen(p) + 1)) == NULL) {
+			if ((rep->text = realloc(rep->text,
+			    strlen(rep->text) + 1 + strlen(p) + 1)) == NULL) {
 				(void) fprintf(stderr, "job: out of memory\n");
 				exit(1);
 			}
@@ -1012,11 +1031,12 @@ char	 line[1024];
 
 		prev = rep->numeric;
 		if (!cont)
-			return rep;
+			return (rep);
 	}
 
 	perror("job: network read");
 	exit(1);
+	/*NOTREACHED*/
 }
 
 static int
@@ -1038,7 +1058,7 @@ int	i;
 		i = fputs("\r\n", server_out);
 	if (i != -1)
 		i = fflush(server_out);
-	return i;
+	return (i);
 }
 
 static int
@@ -1049,7 +1069,7 @@ int	i;
 	va_start(ap, fmt);
 	i = vput_server(fmt, ap);
 	va_end(ap);
-	return i;
+	return (i);
 }
 
 static int
@@ -1057,7 +1077,7 @@ split(line, vec)
 	char	*line;
 	char	**vec;
 {
-char	*p = line;
+char	*p;
 int	 i = 0;
 	while ((p = strchr(line, ' ')) != NULL) {
 		while (*line == ' ')
@@ -1071,7 +1091,7 @@ int	 i = 0;
 			++line;
 
 		if (i+2 == NARG)
-			return i;
+			return (i);
 
 		if (*line == ':')
 			break;
@@ -1081,7 +1101,7 @@ int	 i = 0;
 		line++;
 
 	vec[i++] = line;
-	return i;
+	return (i);
 }
 
 static reply_t *
@@ -1091,7 +1111,7 @@ va_list	 ap;
 reply_t	*rep;
 
 	va_start(ap, fmt);
-	vput_server(fmt, ap);
+	(void) vput_server(fmt, ap);
 	va_end(ap);
 
 	rep = read_line();
@@ -1100,7 +1120,7 @@ reply_t	*rep;
 		exit(1);
 	}
 
-	return rep;
+	return (rep);
 }
 
 static void

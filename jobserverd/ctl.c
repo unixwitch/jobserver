@@ -104,6 +104,9 @@ static int nclients;
 static ctl_client_t *find_client(int);
 static ctl_client_t *new_client(int);
 
+static char *next_word(char **);
+static job_t *next_job(char **, ctl_client_t *client, int action);
+
 /*
  * Takes the first word from 'p', returns the old value
  * of p, and advances p to the start of the next word.
@@ -521,26 +524,13 @@ c_dele(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri;
 job_t		*job = NULL;
 
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+	if ((job = next_job(&line, client, JOB_DELETE)) == NULL)
 		goto err;
-	}
 
 	if (*line) {
 		(void) ctl_printf(client, "500 Too many arguments.\r\n");
-		goto err;
-	}
-
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "501 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_DELETE)) {
-		(void) ctl_printf(client, "503 Permission denied.\r\n");
 		goto err;
 	}
 
@@ -647,20 +637,13 @@ c_clea(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri;
 job_t		*job = NULL;
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
-		goto err;
-	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
+	if ((job = next_job(&line, client, JOB_STARTSTOP)) == NULL)
 		goto err;
-	}
 
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_STARTSTOP)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -683,20 +666,13 @@ c_ushd(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri;
 job_t		*job = NULL;
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
-		goto err;
-	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
+	if ((job = next_job(&line, client, JOB_STARTSTOP)) == NULL)
 		goto err;
-	}
 
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_STARTSTOP)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -719,20 +695,13 @@ c_stop(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri;
 job_t		*job = NULL;
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
-		goto err;
-	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
+	if ((job = next_job(&line, client, JOB_STARTSTOP)) == NULL)
 		goto err;
-	}
 
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_STARTSTOP)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -749,26 +718,25 @@ job_t		*job = NULL;
 err:
 	free_job(job);
 }
+
 void
 c_schd(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri, *time;
+char		*time;
 job_t		*job = NULL;
-	if ((fmri = next_word(&line)) == NULL ||
-	    (time = next_word(&line)) == NULL) {
+
+	if ((job = next_job(&line, client, JOB_STARTSTOP)) == NULL)
+		goto err;
+
+	if((time = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
 		goto err;
 	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_STARTSTOP)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -791,23 +759,15 @@ c_stat(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri;
 job_t		*job = NULL;
 char const	*state, *rstate;
 char		 buf[64];
 
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+	if ((job = next_job(&line, client, JOB_VIEW)) == NULL)
 		goto err;
-	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_VIEW)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -898,23 +858,11 @@ c_chng(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri, *arg;
+char		*arg;
 job_t		*job = NULL;
 
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+	if ((job = next_job(&line, client, JOB_MODIFY)) == NULL)
 		goto err;
-	}
-
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_MODIFY)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
-		goto err;
-	}
 
 	while (arg = next_word(&line)) {
 	char	*key = arg, *value;
@@ -1046,14 +994,16 @@ c_getr(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri, *raws;
+char		*raws;
 job_t		*job = NULL;
 char		*ctl;
 int		 raw = 0;
 rctl_qty_t	 value;
 
-	if ((fmri = next_word(&line)) == NULL ||
-	    (ctl = next_word(&line)) == NULL) {
+	if ((job = next_job(&line, client, JOB_MODIFY)) == NULL)
+		goto err;
+
+	if ((ctl = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
 		goto err;
 	}
@@ -1061,13 +1011,8 @@ rctl_qty_t	 value;
 	if ((raws = next_word(&line)) && !strcmp(raws, "RAW"))
 		raw = 1;
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_MODIFY)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -1089,13 +1034,15 @@ c_setr(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri, *endp = NULL;
+char		*endp = NULL;
 job_t		*job = NULL;
 char		*ctl, *vs;
 u_longlong_t	 value = 0;
 
-	if ((fmri = next_word(&line)) == NULL ||
-	    (ctl = next_word(&line)) == NULL ||
+	if ((job = next_job(&line, client, JOB_MODIFY)) == NULL)
+		goto err;
+
+	if ((ctl = next_word(&line)) == NULL ||
 	    (vs = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
 		goto err;
@@ -1107,13 +1054,8 @@ u_longlong_t	 value = 0;
 		goto err;
 	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_MODIFY)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -1136,25 +1078,18 @@ c_lisr(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri, *raws;
+char		*raws;
 job_t		*job = NULL;
 int		 i, raw = 0;
 
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+	if ((job = next_job(&line, client, JOB_VIEW)) == NULL)
 		goto err;
-	}
 
 	if ((raws = next_word(&line)) && !strcmp(raws, "RAW"))
 		raw = 1;
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_VIEW)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -1195,8 +1130,12 @@ char	*opt, *value;
 
 	value = next_word(&line);
 
-	if (!strcmp(opt, "jobs-per-user")) {
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
+		return;
+	}
 
+	if (!strcmp(opt, "jobs-per-user")) {
 		if (value) {
 		int	 njobs;
 		char	*endp;
@@ -1231,21 +1170,18 @@ c_clrr(client, line)
 	char		*line;
 {
 job_t		*job = NULL;
-char		*fmri, *ctl;
+char		*ctl;
 
-	if ((fmri = next_word(&line)) == NULL ||
-	    (ctl = next_word(&line)) == NULL) {
+	if ((job = next_job(&line, client, JOB_MODIFY)) == NULL)
+		goto err;
+
+	if ((ctl = next_word(&line)) == NULL) {
 		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
 		goto err;
 	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_MODIFY)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -1263,21 +1199,13 @@ c_strt(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri;
 job_t		*job = NULL;
 
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+	if ((job = next_job(&line, client, JOB_STARTSTOP)) == NULL)
 		goto err;
-	}
 
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_STARTSTOP)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (*line) {
+		(void) ctl_printf(client, "500 Too many arguments.\r\n");
 		goto err;
 	}
 
@@ -1300,23 +1228,11 @@ c_uset(client, line)
 	ctl_client_t	*client;
 	char		*line;
 {
-char		*fmri, *arg;
+char		*arg;
 job_t		*job = NULL;
 
-	if ((fmri = next_word(&line)) == NULL) {
-		(void) ctl_printf(client, "500 Not enough arguments.\r\n");
+	if ((job = next_job(&line, client, JOB_MODIFY)) == NULL)
 		goto err;
-	}
-
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 No such job.\r\n");
-		goto err;
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_MODIFY)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
-		goto err;
-	}
 
 	while (arg = next_word(&line)) {
 		if (!strcmp(arg, "START") ||
@@ -1340,4 +1256,35 @@ job_t		*job = NULL;
 
 err:
 	free_job(job);
+}
+
+static job_t *
+next_job(str, client, action)
+	char		**str;
+	ctl_client_t	 *client;
+	int		  action;
+{
+job_t	*job = NULL;
+char	*fmri;
+
+	if ((fmri = next_word(str)) == NULL) {
+		(void) ctl_printf(client, "500 Missing FMRI.\r\n");
+		goto err;
+	}
+
+	if ((job = find_job_fmri(fmri)) == NULL) {
+		(void) ctl_printf(client, "500 Job not found.\r\n");
+		goto err;
+	}
+
+	if (!client->cc_admin && !job_access(job, client->cc_name, action)) {
+		(void) ctl_printf(client, "500 Permission denied.\r\n");
+		goto err;
+	}
+
+	return job;
+
+err:
+	free_job(job);
+	return NULL;
 }

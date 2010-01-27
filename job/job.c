@@ -92,108 +92,52 @@ static int debug;
 
 static char const *bold = "", *red = "", *green = "", *blue = "", *reset = "";
 
-char const *u_list =
-"       job [-D] list|ls [-u <user>]\n"
-"\n"
-"         List all jobs under this account (or all accounts when run by uid 0).\n"
-"\n"
-"           -u <user>           Only list jobs under this account.\n";
-
-char const *u_add =
-"       job [-D] add [-e] [-o <prop>=<value>] [-S <schedule>] [-n <name>] <command>\n"
-"\n"
-"         Create a new job.  By default, the start command will be <command>,\n"
-"         and the job name will be <command> with everything up to the first\n"
-"         slash removed\n"
-"\n"
-"           -e                  Enable the job after adding it.\n"
-"           -n <name>           Specify the name for the job.\n"
-"           -o <prop>=<value>   Specify properties for the new job (see 'job set').\n"
-"           -S <schedule>       Specify a schedule for the job (see 'job schedule').\n";
+char const *u_list = "       job [-D] list|ls [-u <user>]\n";
+char const *u_add = "       job [-D] add [-e] [-o <prop>=<value>] [-S <schedule>] [-n <name>] <command>\n";
 char const *u_endis =
 "       job [-D] en[able] <fmri>\n"
-"       job [-D] dis[able] <fmri>\n"
-"\n"
-"         Enable or disable the given job.\n";
+"       job [-D] dis[able] <fmri>\n";
 char const *u_delete =
-"       job [-D] del[ete] <fmri>\n"
-"\n"
-"         Delete the given job.  If running, the job must be stopped first.\n";
+"       job [-D] del[ete] <fmri>\n";
 char const *u_show =
-"       job [-D] show <fmri>\n"
-"\n"
-"         Show all available information about the given job.\n";
+"       job [-D] show <fmri>\n";
 char const *u_set =
 "       job [-D] set <fmri> <property>=<value> [<property>=<value> ...]\n"
-"       job [-D] unset <fmri> <property> [<property> ...]\n"
-"\n"
-"         Set a property on a job.  Available properties:\n"
-"\n"
-"           start      The command used to start the job.\n"
-"           stop       The command used to stop the job.\n"
-"           fmri       The job's FMRI.\n";
+"       job [-D] unset <fmri> <property> [<property> ...]\n";
 char const *u_schedule =
-"       job [-D] sched[ule] <fmri> \"<time>\"\n"
-"\n"
-"         Schedule a job to run at a particular time.  Any of the\n"
-"         following time formats are accepted:\n"
-"\n"
-"           every minute\n"
-"           every hour at <MM>\n"
-"           every day at <HH>:<MM>\n"
-"           every <DAY> at <HH>:<MM>\n"
-"\n"
-"         HH:MM should be specified in 24-hour format.\n";
+"       job [-D] sched[ule] <fmri> \"<time>\"\n";
 char const *u_clear =
-"       job [-D] clear <fmri>\n"
-"\n"
-"         Clear maintenance state on a job.\n";
+"       job [-D] clear <fmri>\n";
 char const *u_unschedule =
-"       job [-D] unsched[ule] [-s] <fmri>\n"
-"\n"
-"         Unschedule a previously scheduled job.\n"
-"\n"
-"           -s     Stop the job as well as unscheduling it.\n";
+"       job [-D] unsched[ule] [-s] <fmri>\n";
 char const *u_limit =
 "       job [-D] limit [-r] <fmri> <control> [value]\n"
-"       job [-D] unlimit <fmri> <control>\n"
-"\n"
-"         View, set or clear the resource control <control> for the specified\n"
-"         <job>\n"
-"\n";
+"       job [-D] unlimit <fmri> <control>\n";
 char const *u_quota =
-"       job [-D] quota <quota> [value]\n"
-"\n"
-"         Set or change a quota value.  Recognised quota values:\n"
-"\n"
-"           jobs-per-user     Maximum number of jobs a single user may add.\n"; 
+"       job [-D] quota <quota> [value]\n";
 char const *u_start =
-"       job [-D] start <fmri>\n"
-"\n"
-"         Cause a scheduled job to be started immediately.\n";
+"       job [-D] start <fmri>\n";
 char const *u_stop =
-"       job [-D] stop <fmri>\n"
-"\n"
-"         Cause a running scheduled job to be stopped.\n";
+"       job [-D] stop <fmri>\n";
 static void
 usage()
 {
 	(void) fprintf(stderr, "Usage:\n");
-	(void) fprintf(stderr, "%s\n", u_list);
-	(void) fprintf(stderr, "%s\n", u_add);
-	(void) fprintf(stderr, "%s\n", u_endis);
-	(void) fprintf(stderr, "%s\n", u_delete);
-	(void) fprintf(stderr, "%s\n", u_show);
-	(void) fprintf(stderr, "%s\n", u_set);
-	(void) fprintf(stderr, "%s\n", u_schedule);
-	(void) fprintf(stderr, "%s\n", u_unschedule);
-	(void) fprintf(stderr, "%s\n", u_clear);
-	(void) fprintf(stderr, "%s\n", u_limit);
-	(void) fprintf(stderr, "%s\n", u_quota);
-	(void) fprintf(stderr, "%s\n", u_start);
-	(void) fprintf(stderr, "%s\n", u_stop);
+	(void) fprintf(stderr, "%s", u_list);
+	(void) fprintf(stderr, "%s", u_add);
+	(void) fprintf(stderr, "%s", u_endis);
+	(void) fprintf(stderr, "%s", u_delete);
+	(void) fprintf(stderr, "%s", u_show);
+	(void) fprintf(stderr, "%s", u_set);
+	(void) fprintf(stderr, "%s", u_schedule);
+	(void) fprintf(stderr, "%s", u_unschedule);
+	(void) fprintf(stderr, "%s", u_clear);
+	(void) fprintf(stderr, "%s", u_limit);
+	(void) fprintf(stderr, "%s", u_quota);
+	(void) fprintf(stderr, "%s", u_start);
+	(void) fprintf(stderr, "%s", u_stop);
 	(void) fprintf(stderr, 
-"Global options:\n"
+"\nGlobal options:\n"
 "      -D      Enable debug mode.\n"
 );
 }

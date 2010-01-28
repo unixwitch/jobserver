@@ -388,7 +388,7 @@ unserialise_job(job, buf, sz)
 nvlist_t	*nvl = NULL;
 int32_t		 ct, ca1, ca2, ctid;
 char		*start = NULL, *stop = NULL, *proj = NULL,
-		*fmri = NULL, *username;
+		*fmri = NULL, *username, *logfmt;
 uchar_t		*rctls;
 uint_t		 nrctls;
 
@@ -483,6 +483,13 @@ uint_t		 nrctls;
 
 	if (nvlist_lookup_string(nvl, "project", &proj) == 0) {
 		if (((*job)->job_project = strdup(proj)) == NULL) {
+			logm(LOG_ERR, "job_update: out of memory");
+			goto err;
+		}
+	}
+
+	if (nvlist_lookup_string(nvl, "logfmt", &logfmt) == 0) {
+		if (((*job)->job_logfmt = strdup(logfmt)) == NULL) {
 			logm(LOG_ERR, "job_update: out of memory");
 			goto err;
 		}
@@ -897,6 +904,14 @@ nvlist_t	*nvl = NULL;
 		}
 	}
 
+	if (job->job_logfmt) {
+		if (nvlist_add_string(nvl, "logfmt", job->job_logfmt) != 0) {
+			logm(LOG_ERR, "job_update: " "cannot serialise: %s",
+				strerror(errno));
+			goto err;
+		}
+	}
+
 	if (nvlist_pack(nvl, &xbuf, &size, NV_ENCODE_NATIVE, 0)) {
 		logm(LOG_ERR, "job_update: " "cannot serialise: %s",
 			strerror(errno));
@@ -957,6 +972,10 @@ free_job(job)
 	free(job->job_rctls);
 	free(job->job_start_method);
 	free(job->job_stop_method);
+	free(job->job_project);
+	free(job->job_logfmt);
+	free(job->job_fmri);
+	free(job->job_username);
 	free(job);
 }
 
@@ -1573,6 +1592,40 @@ format_rctl(qty, type)
 }
 
 int
+job_set_logfmt(job, logfmt)
+	job_t		*job;
+	char const	*logfmt;
+{
+char	*np = NULL;
+
+	assert(job);
+
+	if (logfmt && *logfmt) {
+		if ((np = strdup(logfmt)) == NULL) {
+			logm(LOG_ERR, "job_set_logfmt: out of memory");
+			goto err;
+		}
+
+		free(job->job_logfmt);
+		job->job_logfmt = np;
+	} else {
+		free(job->job_logfmt);
+		job->job_logfmt = NULL;
+	}
+
+	if (job_update(job) == -1) {
+		logm(LOG_ERR, "job_set_logfmt: job_updated failed");
+		goto err;
+	}
+
+	return (0);
+
+err:
+	free(np);
+	return (-1);
+}
+
+int
 job_set_project(job, proj)
 	job_t		*job;
 	char const	*proj;
@@ -1603,7 +1656,7 @@ char	*np = NULL;
 	}
 
 	if (job_update(job) == -1) {
-		logm(LOG_ERR, "job_set_project: job_updated failed");
+		logm(LOG_ERR, "job_set_project: job_update failed");
 		goto err;
 	}
 

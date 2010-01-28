@@ -187,7 +187,12 @@ int		  lwfd;
 char		 *logfile;
 char		 *s, *p;
 
-	if ((logfile = logfmt("%h/.job/%f.log", job)) == NULL) {
+	if (job->job_logfmt)
+		logfile = logfmt(job->job_logfmt, job);
+	else
+		logfile = logfmt("%h/.job/%f.log", job);
+
+	if (logfile == NULL) {
 		logm(LOG_ERR, "start_job: could not create log format");
 		_exit(1);
 	}

@@ -662,6 +662,7 @@ char	*vec[NARG];
 		case 213: (void) printf("              (in %s)\n", rep->text);
 			break;
 		case 209: (void) printf("     project: %s\n", rep->text); break;
+		case 214: (void) printf("  log format: %s\n", rep->text); break;
 		case 210: (void) printf("     on exit: %s\n", rep->text); break;
 		case 211: (void) printf("     on fail: %s\n", rep->text); break;
 		case 212: (void) printf("    on crash: %s\n", rep->text); break;
@@ -720,6 +721,8 @@ reply_t	*rep;
 		key = "NAME";
 	else if (strcmp(prop, "project") == 0)
 		key = "PROJECT";
+	else if (strcmp(prop, "logfmt") == 0)
+		key = "LOGFMT";
 	else if (strcmp(prop, "exit") == 0)
 		key = "EXIT";
 	else if (strcmp(prop, "fail") == 0)
@@ -756,6 +759,8 @@ reply_t	*rep;
 		key = "FMRI";
 	else if (strcmp(prop, "project") == 0)
 		key = "PROJECT";
+	else if (strcmp(prop, "logfmt") == 0)
+		key = "LOGFMT";
 	else if (strcmp(prop, "exit") == 0)
 		key = "EXIT";
 	else if (strcmp(prop, "fail") == 0)

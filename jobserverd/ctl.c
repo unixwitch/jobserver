@@ -809,6 +809,8 @@ char		 buf[64];
 	(void) ctl_printf(client, "205 :%s\r\n", rstate);
 	(void) ctl_printf(client, "206 :%s\r\n", job->job_start_method);
 	(void) ctl_printf(client, "207 :%s\r\n", job->job_stop_method);
+	if (job->job_logfmt)
+	(void) ctl_printf(client, "214 :%s\r\n", job->job_logfmt);
 
 	buf[0] = 0;
 	if (job->job_exit_action & ST_EXIT_RESTART)
@@ -921,6 +923,12 @@ job_t		*job = NULL;
 			if (job_set_project(job, value) == -1) {
 				(void) ctl_printf(client, "500 "
 				    "Could not change project.\r\n");
+				goto err;
+			}
+		} else if (strcmp(key, "LOGFMT") == 0) {
+			if (job_set_logfmt(job, value) == -1) {
+				(void) ctl_printf(client, "500 "
+				    "Could not change log format.\r\n");
 				goto err;
 			}
 		} else if (strcmp(key, "ENABLED") == 0) {

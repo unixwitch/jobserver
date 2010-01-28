@@ -1,4 +1,4 @@
-.TH job_set 1 "26 Jan 2010" "Jobserver" "User Commands"
+.TH job_set 1 "28 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job set \- set properties for a job
 .SH SYNOPSIS
@@ -72,6 +72,21 @@ The project the job will run in.
 The exit, fail and crash actions for the job.
 .RE
 
+.sp
+.sp
+.sp
+.sp
+
+.ne 2
+.mk
+.na
+\fBlogfmt\fR
+.ad
+.RS 13n
+.rt
+The job's logfile format.
+.RE
+
 .SH EXIT ACTIONS
 
 .LP
@@ -87,6 +102,74 @@ occurs.  The default for all actions is \fBdisable,mail\fR, which means the
 job will be disabled, and mail will be sent to the job's owner.  Valid actions
 are \fBdisable\fR and \fBrestart\fR, which causes the job to restart.  The
 \fBmail\fR modifier can be used with either action.
+
+.SH LOGFILE FORMAT
+
+.LP
+The logfile format tells the jobserver where to write output from a job.  The
+default format is \fB%h/.job/%f.log\fR, which writes logs to files in the \fB.job\fR
+directory in your home directory.
+
+.LP
+The log format is contructed from single-letter %-escape sequences.  The
+following escapes are available:
+
+.ne 2
+.mk
+.na
+\fB%%\fR
+.ad
+.RS 13n
+.rt
+A single % character.
+.RE
+
+.ne 2
+.mk
+.na
+\fB%h\fR
+.ad
+.RS 13n
+.rt
+User's home directory.
+.RE
+
+.ne 2
+.mk
+.na
+\fB%t\fR
+.ad
+.RS 13n
+.rt
+The date and time the job was started, in the form 
+YYYY-MM-DD_HH:MM:SS.
+.RE
+
+.ne 2
+.mk
+.na
+\fB%d\fR
+.ad
+.RS 13n
+.rt
+The date the job was started, in the form YYYY-MM-DD;
+.RE
+
+.ne 2
+.mk
+.na
+\fB%f\fR
+.ad
+.RS 13n
+.rt
+The job's FMRI, excluding the \fBjob:/\fR\fIusername\fR\fB/\fR
+prefix.  For example, \fBjob:/jsmith/foo/bar\fR would become
+\fBfoo_bar\fR.
+.RE
+
+.LP
+Any missing directories will be created automatically when the
+job is started.
 
 .SH EXAMPLES
 .LP

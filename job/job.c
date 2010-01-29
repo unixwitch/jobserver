@@ -910,7 +910,7 @@ int nopts = 0;
 		return (1);
 	}
 
-	(void) simple_command("CHNG %s :START=%s", id, argv[0]);
+	(void) simple_command("CHNG %s :start=%s", id, argv[0]);
 
 	for (i = 0; i < nopts; ++i) {
 		if (do_set_property(id, opts[i].prop, opts[i].value) == -1) {

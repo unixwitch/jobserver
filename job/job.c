@@ -49,8 +49,6 @@ static int	c_add(int, char **);
 static int	c_schedule(int, char **);
 static int	c_unschedule(int, char **);
 static int	c_clear(int, char **);
-static int	c_limit(int, char **);
-static int	c_unlimit(int, char **);
 static int	c_quota(int, char **);
 static int	c_start(int, char **);
 static int	c_unset(int, char **);
@@ -76,8 +74,6 @@ static struct {
 	{ "unschedule",	c_unschedule },
 	{ "unsched",	c_unschedule },
 	{ "clear",	c_clear },
-	{ "limit",	c_limit },
-	{ "unlimit",	c_unlimit },
 	{ "quota",	c_quota },
 	{ "start",	c_start },
 	{ "unset",	c_unset },
@@ -109,9 +105,6 @@ char const *u_clear =
 "       job [-D] clear <fmri>\n";
 char const *u_unschedule =
 "       job [-D] unsched[ule] [-s] <fmri>\n";
-char const *u_limit =
-"       job [-D] limit [-r] <fmri> <control> [value]\n"
-"       job [-D] unlimit <fmri> <control>\n";
 char const *u_quota =
 "       job [-D] quota <quota> [value]\n";
 char const *u_start =
@@ -131,8 +124,6 @@ usage()
 	(void) fprintf(stderr, "%s", u_schedule);
 	(void) fprintf(stderr, "%s", u_unschedule);
 	(void) fprintf(stderr, "%s", u_clear);
-	(void) fprintf(stderr, "%s", u_limit);
-	(void) fprintf(stderr, "%s", u_quota);
 	(void) fprintf(stderr, "%s", u_start);
 	(void) fprintf(stderr, "%s", u_stop);
 	(void) fprintf(stderr,
@@ -480,83 +471,6 @@ c_start(argc, argv)
 	}
 
 	(void) simple_command("STRT %s", argv[1]);
-	return (0);
-}
-
-int
-c_limit(argc, argv)
-	int argc;
-	char **argv;
-{
-char	*vec[NARG];
-int	 c, raw = 0;
-	optind = 1;
-
-	while ((c = getopt(argc, argv, "r")) != -1) {
-		switch (c) {
-		case 'r':
-			raw++;
-			break;
-
-		default:
-			(void) fprintf(stderr, "%s", u_limit);
-			return (1);
-		}
-	}
-	argc -= optind;
-	argv += optind;
-
-	if (argc < 1 || argc > 3) {
-		(void) fprintf(stderr, "limit: wrong number of arguments\n\n");
-		(void) fprintf(stderr, "%s", u_limit);
-		return (1);
-	}
-
-	if (argc == 1) {
-	reply_t	*rep;
-		(void) put_server("LISR %s%s", argv[0], raw ? " RAW" : "FMT");
-		while (rep = read_line()) {
-			switch (rep->numeric) {
-			case 200:
-				(void) split(rep->text, vec);
-				(void) printf("%s = %s\n", vec[0], vec[1]);
-				break;
-
-			case 201:
-				return (0);
-
-			default:
-				(void) printf("%s\n", rep->text);
-				return (1);
-			}
-		}
-
-		(void) fprintf(stderr, "job: unexpected EOF\n");
-		return (1);
-	} else if (argc == 2) {
-	reply_t	*rep;
-		rep = simple_command("GETR %s %s%s",
-		    argv[0], argv[1], raw ? " RAW" : "");
-		(void) printf("%s = %s\n", argv[1], rep->text);
-	} else
-		(void) simple_command("SETR %s %s %s", argv[0], argv[1], argv[2]);
-
-	return (0);
-}
-
-int
-c_unlimit(argc, argv)
-	int argc;
-	char **argv;
-{
-	if (argc != 3) {
-		(void) fprintf(stderr, "unlimit: wrong number of arguments\n\n");
-		(void) fprintf(stderr, "%s", u_limit);
-		return (1);
-	}
-
-	(void) simple_command("CLRR %s %s", argv[1], argv[2]);
-
 	return (0);
 }
 

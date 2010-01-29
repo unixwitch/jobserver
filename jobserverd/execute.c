@@ -96,8 +96,12 @@ rctlblk_t	*blk = alloca(rctlblk_size()), *blk2 = alloca(rctlblk_size());
 		 * for deny action.
 		 */
 
-		(void) snprintf(rname, sizeof (rname),
-				"process.%s", r->jr_name);
+		if (strcmp(r->jr_name, "max-cpu-time") == 0)
+			(void) snprintf(rname, sizeof (rname),
+					"task.%s", r->jr_name);
+		else
+			(void) snprintf(rname, sizeof (rname),
+					"process.%s", r->jr_name);
 
 		for (i = getrctl(rname, NULL, blk, RCTL_FIRST);
 			i != -1;

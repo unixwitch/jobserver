@@ -58,10 +58,7 @@ void	c_schd(ctl_client_t *, void **);
 void	c_ushd(ctl_client_t *, void **);
 void	c_stat(ctl_client_t *, void **);
 void	c_clea(ctl_client_t *, void **);
-void	c_setr(ctl_client_t *, void **);
-void	c_getr(ctl_client_t *, void **);
 void	c_lisr(ctl_client_t *, void **);
-void	c_clrr(ctl_client_t *, void **);
 void	c_conf(ctl_client_t *, void **);
 void	c_gcnf(ctl_client_t *, void **);
 void	c_strt(ctl_client_t *, void **);
@@ -123,21 +120,9 @@ static struct command {
 	{ "CLEA", RUNNING, 1, c_clea, {
 		(ARG_T_FMRI | ARG_J_STARTSTOP)
 	} },
-	{ "SETR", RUNNING, 3, c_setr, {
-		(ARG_T_FMRI | ARG_J_MODIFY),
-		ARG_T_STR,
-		ARG_T_INT
-	} },
-	{ "GETR", RUNNING, 2, c_getr, {
-		(ARG_T_FMRI | ARG_J_VIEW),
-		ARG_T_STR
-	} },
 	{ "LISR", RUNNING, 2, c_lisr, {
 		(ARG_T_FMRI | ARG_J_VIEW),
 		ARG_T_STR
-	} },
-	{ "CLRR", RUNNING, 1, c_clrr, {
-		(ARG_T_FMRI | ARG_J_STARTSTOP)
 	} },
 	{ "GCNF", RUNNING, 0, c_gcnf, {
 		ARG_T_STR,
@@ -1058,9 +1043,22 @@ char	*key = arg, *value;
 			    "Cannot set action.\r\n");
 			return;
 		}
-	} else {
-		(void) ctl_printf(client, "500 Unknown property.\r\n");
-		return;
+	} else if (is_valid_rctl(key)) {
+	u_longlong_t	 qty;
+	char		*endp;
+		errno = 0;
+		qty = strtoull(value, &endp, 10);
+		if ((qty == 0 && errno != 0) || endp != (value + strlen(value))) {
+			(void) ctl_printf(client, "500 "
+			    "Invalid number.\r\n");
+			return;
+		}
+
+		if (job_set_rctl(job, key, qty) == -1)
+			(void) ctl_printf(client, "500 "
+			    "Resource control \"%s\" not set.\r\n", key);
+		else
+			(void) ctl_printf(client, "200 OK.\r\n");
 	}
 
 	(void) ctl_printf(client, "200 OK.\r\n");
@@ -1078,48 +1076,6 @@ ctl_close(client)
 
 	LIST_REMOVE(client, cc_entries);
 	free(client);
-}
-
-void
-c_getr(client, args)
-	ctl_client_t	*client;
-	void		**args;
-{
-job_t		*job = args[0];
-char		*ctl = args[1];
-char		*raws = args[2];
-rctl_qty_t	 value;
-
-	if ((value = job_get_rctl(job, ctl)) == (rctl_qty_t)-1)
-		(void) ctl_printf(client, "500 "
-		    "Resource control \"%s\" not set.\r\n", ctl);
-	else
-		if (strcmp(raws, "RAWS") == 0)
-			(void) ctl_printf(client, "200 %llu\r\n", value);
-		else
-			(void) ctl_printf(client, "200 %s\r\n",
-				format_rctl(value, get_rctl_type(ctl)));
-}
-
-void
-c_setr(client, args)
-	ctl_client_t	*client;
-	void		**args;
-{
-job_t		*job = args[0];
-char		*ctl = args[1];
-u_longlong_t	 value = *(u_longlong_t *)args[2];
-
-	if (!is_valid_rctl(ctl)) {
-		(void) ctl_printf(client, "500 Invalid resource control.\r\n");
-		return;
-	}
-
-	if ((value = job_set_rctl(job, ctl, value)) == -1)
-		(void) ctl_printf(client, "500 "
-		    "Resource control \"%s\" not set.\r\n", ctl);
-	else
-		(void) ctl_printf(client, "200 OK.\r\n");
 }
 
 void
@@ -1207,20 +1163,6 @@ char	*value = args[1];
 }
 
 void
-c_clrr(client, args)
-	ctl_client_t	*client;
-	void		**args;
-{
-job_t		*job = args[0];
-char		*ctl = args[1];
-
-	if (job_clear_rctl(job, ctl) == -1)
-		(void) ctl_printf(client, "500 Could not clear rctl.\r\n");
-	else
-		(void) ctl_printf(client, "200 OK.\r\n");
-}
-
-void
 c_strt(client, args)
 	ctl_client_t	*client;
 	void		**args;
@@ -1247,17 +1189,23 @@ c_uset(client, args)
 job_t		*job = args[0];
 char		*arg = args[1];
 
-	if (strcmp(arg, "START") == 0 ||
-	    strcmp(arg, "STOP") == 0 ||
-	    strcmp(arg, "NAME") == 0 ||
-	    strcmp(arg, "ENABLED") == 0) {
+	if (strcmp(arg, "start") == 0 ||
+	    strcmp(arg, "stop") == 0 ||
+	    strcmp(arg, "name") == 0 ||
+	    strcmp(arg, "enabled") == 0) {
 		(void) ctl_printf(client, "500 This option "
 		    "cannot be unset.\r\n");
 		return;
-	} else if (strcmp(arg, "PROJECT") == 0) {
+	} else if (strcmp(arg, "project") == 0) {
 		if (job_set_project(job, NULL) == -1) {
 			(void) ctl_printf(client,
 			    "500 Could not change project.\r\n");
+			return;
+		}
+	} else if (is_valid_rctl(arg)) {
+		if (job_clear_rctl(job, arg) == -1) {
+			(void) ctl_printf(client,
+			    "500 Could not clear rctl.\r\n");
 			return;
 		}
 	} else {

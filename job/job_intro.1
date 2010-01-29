@@ -56,7 +56,7 @@ entirely, use \fBjob delete\fR \fIfmri\fR.
 Any output from the job will be sent to the file
 \fB$HOME/.job/job_\fR\fIname\fR\fB.log\fR, which will be rotated automatically
 once it reaches 1MB in size.  \fIname\fR is constructed by taking the job's FMRI,
-removing the initial \fBjob:/\fR\fIusername\fR\fB/\fB, and replacing all '/'
+removing the initial \fBjob:/\fR\fIusername\fR\fB/\fR, and replacing all '/'
 characters with '_' in the remainder.
 
 .SH SCHEDULED JOBS
@@ -125,15 +125,15 @@ and write \fINAME\fR\fB=\fR\fIVALUE\fR pairs in it, one per line.
 .LP
 Resource limits are a way to restrict the resources a job can use, so that
 a broken job doesn't adversely affect the rest of the system.  Use the
-\fBjob limit\fR command to set resource limits.  For example, to limit the
+\fBjob set\fR command to set resource limits.  For example, to limit the
 process to 10MB of memory:
 
 .in +2
 .nf
-example% job limit myjob_sh max-data-size=10240
+example% job set myjob_sh max-data-size=10240
 .fi
 .in -2
 
 .LP
-To view a job's resource limits, use \fBjob limit\fR \fIfmri\fR.  See
-\fBjob_limit\fR(1) for a list of available resource limits.
+To view a job's resource limits, use \fBjob show\fR \fIfmri\fR.  See
+\fBjob_set\fR(1) for a list of available resource limits.

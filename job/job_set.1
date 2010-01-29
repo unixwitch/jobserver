@@ -1,3 +1,4 @@
+'\" te
 .TH job_set 1 "28 Jan 2010" "Jobserver" "User Commands"
 .SH NAME
 job set \- set properties for a job
@@ -18,77 +19,32 @@ control aspects of how a job is started and stopped.
 .LP
 The following properties are available:
 
-.ne 2
-.mk
-.na
-\fBstart\fR
-.ad
-.RS 13n
-.rt
-The command used to start the job.
-.RE
+.SS "start, stop"
+.LP
+The commands used to start or stop the job.  A start command is required.  If the
+stop command is not specified, the jobserver will stop the job by sending SIGTERM
+to all processes in the job.
 
-.ne 2
-.mk
-.na
-\fBstop\fR
-.ad
-.RS 13n
-.rt
-The command used to stop the job.
-.RE
-
-.ne 2
-.mk
-.na
-\fBname\fR
-.ad
-.RS 13n
-.rt
+.SS "name"
+.LP
 The name of the job.
-.RE
 
-.ne 2
-.mk
-.na
-\fBproject\fR
-.ad
-.RS 13n
-.rt
+.SS project
+.LP
 The project the job will run in.
-.RE
 
-.ne 2
-.mk
-.na
-\fBexit\fR
-.br
-\fBfail\fR
-.br
-\fBcrash\fR
-.ad
-.RS 13n
-.rt
-The exit, fail and crash actions for the job.
-.RE
+.SS "exit, fail crash"
+.LP
+The job's exit actions.
 
-.sp
-.sp
-.sp
-.sp
-
-.ne 2
-.mk
-.na
-\fBlogfmt\fR
-.ad
-.RS 13n
-.rt
+.SS "logfmt"
 The job's logfile format.
-.RE
+
+.LP
+The property may also be any of the valid resource controls described
+below.
 
 .SH EXIT ACTIONS
-
 .LP
 When a job exits, its exit action is invoked.  There are three separate exit
 actions: \fBexit\fR, which is used when the job exits with return code 0,
@@ -171,6 +127,72 @@ prefix.  For example, \fBjob:/jsmith/foo/bar\fR would become
 Any missing directories will be created automatically when the
 job is started.
 
+.SH RESOURCE CONTROLS
+.LP
+Use these commands to configure resource limits for a job.  Resource
+limits place limits on system resources, such as CPU time or memory,
+that a job may use.  Using resource limits prevents a job from
+accidentally using too many system resources, and adversely affecting
+the rest of the system.
+
+.LP
+The following resource controls are available:
+
+.TS
+box;
+c |cw(4i)
+l |lw(4i).
+Resource	Description
+_
+max-data-size	T{
+(bytes) Maximum heap size (i.e. allocated memory) any process can use 
+T}
+_
+max-cpu-time	T{
+(seconds) Maximum amount of CPU time (not wall clock time) the entire job is allowed to use before being killed.
+T}
+_
+max-core-size	T{
+(bytes) Largest core file any process is allowed to dump when it crashes.  Set this to 0 to disable core dumps.
+T}
+_
+max-address-space	T{
+(bytes) Largest address space (including mapped data) available to any process.
+T}
+_
+max-file-description	T{
+Maximum number of files or network connections any process can open.
+T}
+_
+max-file-size	T{
+(bytes) Largest file any process can create.
+T}
+_
+max-msg-messages	T{
+Maximum number of messages on a message queue.
+T}
+_
+max-msg-qbytes	T{
+(bytes) Maximum size of pending data on a message queue.
+T}
+_
+max-port-events	T{
+Maximum number of pending events on an event port.
+T}
+_
+max-sem-nsems	T{
+Maximum number of semaphores allowed per semaphore set.
+T}
+_
+max-sem-ops	T{
+Maximum number of semaphore operations allowed per semop call.
+T}
+_
+max-stack-size	T{
+(bytes) Largest stack size available to any process.
+T}
+.TE
+
 .SH EXAMPLES
 .LP
 \fBExample 1: Set a job's project to 'batch'\fR
@@ -186,6 +208,28 @@ example% job set myjob project=batch
 .in +2
 .nf
 example% job unset myjob project
+.fi
+.in -2
+
+\fBExample 3: Set the data size limit for a job\fR
+
+.LP
+This command sets the data limit for a job to 10MB:
+
+.in +2
+.nf
+example% job set myjob max-data-size=10240
+.fi
+.in -2
+
+\fBExample 5: Remove the data limit for a job\fR
+
+.LP
+This command removes the data limit for a job:
+
+.in +2
+.nf
+example% job unset myjob max-data-size
 .fi
 .in -2
 

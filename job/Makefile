@@ -20,7 +20,6 @@ PROG	= job
 MANPAGES	= 	\
 	job.1		\
 	job_enable.1	\
-	job_limit.1	\
 	job_schedule.1	\
 	job_show.1	\
 	job_add.1	\

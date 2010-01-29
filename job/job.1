@@ -140,104 +140,28 @@ stop method itself.
 .LP
 The following commands are used to manage jobs:
 
-.ne 2
-.mk
-.na
-\fBjob add\fR
-.ad
-.RS 5n
-.rt
+.SS "job add"
 Create a new job.  See \fBjob_add\fR(1).
-.RE
 
-.ne 2
-.mk
-.na
-\fBjob delete\fR
-.ad
-.RS 5n
-.rt
+.SS "job delete"
 Delete a job.  See \fBjob_delete\fR(1).
-.RE
 
-.ne 2
-.mk
-.na
-\fBjob enable\fR
-.br
-\fBjob disable\fR
-.ad
-.RS 5n
-.rt
+.SS "job enable, job disable"
 Enable or disable a job.  See \fBjob_enable\fR(1).
-.RE
 
-.ne 2
-.mk
-.na
-\fBjob set\fR
-\fBjob unset\fR
-.ad
-.RS 5n
-.rt
-Change a job's configuration.  See \fBjob_set\fR(1).
-.RE
+.SS "job set, job unset"
+Change a job's configuration or set resource limits.  See \fBjob_set\fR(1).
 
-.ne 2
-.mk
-.na
-\fBjob show\fR
-.ad
-.RS 5n
-.rt
+.SS "job show"
 Display a job's configuration and state.  See \fBjob_show\fR(1).
-.RE
 
-.ne 2
-.mk
-.na
-\fBjob clear\fR
-.ad
-.RS 5n
-.rt
+.SS "job clear"
 Clear the maintenance state on a job.  See \fBjob_clear\fR(1).
-.RE
 
-.ne 2
-.mk
-.na
-\fBjob schedule\fR
-.br
-\fBjob unschedule\fR
-.br
-\fBjob start\fR
-.br
-\fBjob stop\fR
-.ad
-.RS 5n
-.rt
+.SS "job schedule, job unschedule"
+.SS "job start, job stop"
 Schedule or unschedule a job, or force a scheduled job to run or stop.
 See \fBjob_schedule\fR(1).
-.RE
 
-.ne 2
-.mk
-.na
-\fBjob limit\fR
-.br
-\fBjob unlimit\fR
-.ad
-.RS 5n
-.rt
-Set or clear resource limits on a job.  See \fBjob_limit\fR(1).
-.RE
-
-.ne 2
-.mk
-.na
-\fBjob quota\fR
-.ad
-.RS 5n
-.rt
+.SS "job quota"
 Configure user quotas.  See \fBjob_quota\fR(1).
-.RE

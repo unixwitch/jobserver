@@ -7,7 +7,6 @@
 #include	<errno.h>
 #include	<string.h>
 #include	<assert.h>
-#include	<db.h>
 #include	<stdlib.h>
 #include	<strings.h>
 #include	<libnvpair.h>
@@ -16,25 +15,48 @@
 #include	<project.h>
 #include	<pwd.h>
 #include	<ctype.h>
+#include	<inttypes.h>
 
 #include	"jobserver.h"
 #include	"state.h"
 #include	"sched.h"
+#include	"kvdb.h"
 
 #define	DB_PATH "/var/jobserver"
 
-static DB_ENV	*env;
-static DB	*db_job;
-static DB	*db_config;
-
 static int job_update(job_t *);
+
+static int db = -1;
+static int table_jobs = -1;
+static int table_config = -1;
+
+static int unserialise_job(job_t **, char const *, size_t);
+
+static LIST_HEAD(job_list, job) jobs;
+
+static int
+load_job_callback(key, data, sz, udata)
+	char const	*key, *data;
+	size_t		 sz;
+	void		*udata;
+{
+job_t	*job;
+int	*nerrs = udata;
+	if (unserialise_job(&job, data, sz) == -1) {
+		logm(LOG_ERR, "load_job_callback: unserialise failed");
+		(*nerrs)++;
+		return (1);
+	}
+
+	LIST_INSERT_HEAD(&jobs, job, job_entries);
+	return (0);
+}
 
 int
 statedb_init()
 {
-int		err;
 struct stat	sb;
-	assert(env == NULL);
+int		nerrs = 0;
 
 	if (stat(DB_PATH, &sb) == -1) {
 		if (errno != ENOENT) {
@@ -54,104 +76,58 @@ struct stat	sb;
 		logm(LOG_NOTICE, "created directory %s", DB_PATH);
 	}
 
-	if (stat(DB_PATH "/db", &sb) == -1) {
-		if (errno != ENOENT) {
-			logm(LOG_ERR, "statedb_init: "
-			    "cannot access database %s: %s",
-			    DB_PATH "/db", strerror(errno));
-			return (-1);
-		}
-
-		if (mkdir(DB_PATH "/db", 0700) == -1) {
-			logm(LOG_ERR, "statedb_init: "
-			    "cannot create database %s: %s",
-			    DB_PATH "/db", strerror(errno));
-			return (-1);
-		}
-
-		logm(LOG_NOTICE, "created directory %s", DB_PATH "/db");
-	}
-
-	if ((err = db_env_create(&env, 0)) != 0) {
-		logm(LOG_ERR, "statedb_init: cannot create environment: %s",
-		    db_strerror(err));
-		env = NULL;
-		return (-1);
-	}
-
-	if ((err = env->open(env, DB_PATH "/db",
-	    DB_CREATE | DB_INIT_TXN | DB_INIT_LOG |
-	    DB_INIT_MPOOL, 0)) != 0) {
-		logm(LOG_ERR, "statedb_init: cannot open environment: %s",
-		    db_strerror(err));
+	if ((db = kvdb_open(DB_PATH, KVDB_CREATE)) == -1) {
+		logm(LOG_ERR, "statedb_init: %s: %s",
+		    DB_PATH, strerror(errno));
 		goto err;
 	}
 
-	if ((err = db_create(&db_job, env, 0)) != 0) {
-		logm(LOG_ERR, "statedb_init: db_create failed: %s",
-		    db_strerror(err));
+	if ((table_jobs = kvtable_open(db, "jobs", KVT_CREATE)) == -1) {
+		logm(LOG_ERR, "statedb_init: %s: %s",
+		    "jobs", strerror(errno));
 		goto err;
 	}
 
-	if ((err = db_job->open(db_job, NULL, "job.db", NULL, DB_BTREE,
-	    DB_CREATE | DB_AUTO_COMMIT, 0)) != 0) {
-		logm(LOG_ERR, "statedb_init: db open failed: %s",
-		    db_strerror(err));
+	if ((table_config = kvtable_open(db, "config", KVT_CREATE)) == -1) {
+		logm(LOG_ERR, "statedb_init: %s: %s",
+		    "jobs", strerror(errno));
 		goto err;
 	}
 
-	if ((err = db_create(&db_config, env, 0)) != 0) {
-		logm(LOG_ERR, "statedb_init: db_create failed: %s",
-		    db_strerror(err));
+	if (kvenumerate(table_jobs, load_job_callback, &nerrs) == -1) {
+		logm(LOG_ERR, "statedb_init: kvenumerate: %s",
+		    strerror(errno));
 		goto err;
 	}
 
-	if ((err = db_job->open(db_config, NULL, "config.db", NULL, DB_BTREE,
-	    DB_CREATE | DB_AUTO_COMMIT, 0)) != 0) {
-		logm(LOG_ERR, "statedb_init: db open failed: %s",
-		    db_strerror(err));
+	if (nerrs)
 		goto err;
-	}
 
 	return (0);
 
 err:
-	if (db_job != NULL)
-		(void) db_job->close(db_job, 0);
-	if (db_config != NULL)
-		(void) db_config->close(db_config, 0);
+	if (table_jobs != -1)
+		kvtable_close(table_jobs);
+	if (table_config != -1)
+		kvtable_close(table_config);
+	if (db != -1)
+		kvdb_close(db);
 
-	db_job = db_config = NULL;
-	(void) env->close(env, 0);
-	env = NULL;
+	db = table_jobs = table_config = -1;
 	return (-1);
 }
 
 void
 statedb_shutdown()
 {
-int	err;
-	if (db_job) {
-		if ((err = db_job->close(db_job, 0)) != 0)
-			logm(LOG_ERR, "statedb_shutdown: closing job db: %s",
-			    db_strerror(err));
-		db_job = NULL;
-	}
+	if (table_jobs != -1)
+		kvtable_close(table_jobs);
+	if (table_config != -1)
+		kvtable_close(table_config);
+	if (db != -1)
+		kvdb_close(db);
 
-	if (db_config) {
-		if ((err = db_config->close(db_config, 0)) != 0)
-			logm(LOG_ERR, "statedb_shutdown: closing config db: %s",
-			    db_strerror(err));
-		db_config = NULL;
-	}
-
-	if (env) {
-		if ((err = env->close(env, 0)) != 0)
-			logm(LOG_ERR, "statedb_shutdown: "
-			    "closing environment: %s",
-			    db_strerror(err));
-		env = NULL;
-	}
+	db = table_jobs = table_config = -1;
 }
 
 static job_id_t next_job_id(void);
@@ -164,163 +140,82 @@ next_job_id()
 	 * key.  We retrieve the current value, then increment it for the next
 	 * caller.
 	 */
+job_id_t	*id = NULL, i;
+size_t		 idsize;
 
-DBT		 key, data;
-DB_TXN		*txn;
-int		 err;
-job_id_t	 id;
-
-	assert(env);
-	assert(db_config);
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "next_job_id: txn start failed: %s",
-		    db_strerror(errno));
-		return (-1);
-	}
-
-	bzero(&key, sizeof (key));
-	bzero(&data, sizeof (data));
-
-	key.data = "next_job_id";
-	key.size = strlen(key.data);
-
-	data.data = &id;
-	data.size = data.ulen = sizeof (id);
-	data.flags = DB_DBT_USERMEM;
-
-	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
-		if (err != DB_NOTFOUND) {
+	if (kvtable_get(table_config, "next_job_id",
+	    (char **)&id, &idsize) == -1) {
+	job_id_t	newid;
+		if (errno != ENOENT) {
 			logm(LOG_ERR, "next_job_id: db get failed: %s",
-			    db_strerror(err));
-			(void) txn->abort(txn);
-			return (-1);
+			    strerror(errno));
+			goto err;
 		}
 
 		/* This is the first call, so insert a new key. */
-		id = 1;
-		if ((err = db_config->put(db_config,
-		    txn, &key, &data, 0)) != 0) {
+		newid = 1;
+		if (kvtable_insert(table_config, "next_job_id",
+		    (char *)&newid, sizeof (newid)) == -1) {
 			logm(LOG_ERR, "next_job_id: db put failed: %s",
-			    db_strerror(err));
-			(void) txn->abort(txn);
-			return (-1);
+			    strerror(errno));
+			goto err;
 		}
 
-		if ((err = txn->commit(txn, 0)) != 0) {
-			logm(LOG_ERR, "next_job_id: commit failed: %s",
-			    db_strerror(err));
-			return (-1);
-		}
+		return (newid - 1);
+	}
 
-		return (id - 1);
+	if (idsize != sizeof (id)) {
+		logm(LOG_ERR, "next_job_id: wrong data size");
+		goto err;
 	}
 
 	/*
 	 * Increment the key and put it back.
 	 */
-	id++;
+	(*id)++;
 
-	if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
+	if (kvtable_replace(table_config, "next_job_id",
+	    (char *)id, sizeof (*id)) == -1) {
 		logm(LOG_ERR, "next_job_id: db put failed: %s",
-		    db_strerror(err));
-		(void) txn->abort(txn);
-		return (-1);
+		    strerror(errno));
+		goto err;
 	}
 
-	if ((err = txn->commit(txn, 0)) != 0) {
-		logm(LOG_ERR, "next_job_id: commit failed: %s",
-		    db_strerror(err));
-		return (-1);
-	}
+	i = *id;
+	free(id);
+	return (i - 1);
 
-	return (id - 1);
+err:
+	free(id);
+	return (-1);
 }
 
 int
 quota_get_jobs_per_user()
 {
-DBT		 key, data;
-DB_TXN		*txn;
-int		 err;
-int		 njobs;
+int	*njobs, nj;
+size_t	 sz;
 
-	assert(env);
-	assert(db_config);
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "quota_get_njobs_per_user: txn start failed: %s",
-		    db_strerror(errno));
+	if (kvtable_get(table_config, "quota_jobs_per_user",
+	    (char **)&njobs, &sz) == -1) {
+		if (errno == ENOENT)
+			return (0);
 		return (-1);
 	}
 
-	bzero(&key, sizeof (key));
-	bzero(&data, sizeof (data));
-
-	key.data = "quota_jobs_per_user";
-	key.size = strlen(key.data);
-
-	data.data = &njobs;
-	data.size = data.ulen = sizeof (njobs);
-	data.flags = DB_DBT_USERMEM;
-
-	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
-		(void) txn->abort(txn);
-
-		if (err != DB_NOTFOUND) {
-			logm(LOG_ERR, "quota_get_jobs_per_user: "
-			    "db get failed: %s",
-			    db_strerror(err));
-			return (-1);
-		}
-
-		return (0);
-	}
-
-	(void) txn->abort(txn);
-	return (njobs);
+	nj = *njobs;
+	free(njobs);
+	return (nj);
 }
 
 int
 quota_set_jobs_per_user(n)
 	int	n;
 {
-DBT		 key, data;
-DB_TXN		*txn;
-int		 err;
-
-	assert(env);
-	assert(db_config);
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "quota_set_njobs_per_user: txn start failed: %s",
-				db_strerror(errno));
-		return (-1);
-	}
-
-	bzero(&key, sizeof (key));
-	bzero(&data, sizeof (data));
-
-	key.data = "quota_jobs_per_user";
-	key.size = strlen(key.data);
-
-	data.data = &n;
-	data.size = data.ulen = sizeof (n);
-	data.flags = DB_DBT_USERMEM;
-
-	if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
-		(void) txn->abort(txn);
-
+	if (kvtable_replace(table_config, "quota_jobs_per_user",
+	    (char *)&n, sizeof (n)) == -1) {
 		logm(LOG_ERR, "quota_set_jobs_per_user: db put failed: %s",
-				db_strerror(err));
-		return (-1);
-	}
-
-	if ((err = txn->commit(txn, 0)) != 0) {
-		(void) txn->abort(txn);
-
-		logm(LOG_ERR, "quota_set_jobs_per_user: commit failed: %s",
-				db_strerror(err));
+		    strerror(errno));
 		return (-1);
 	}
 
@@ -371,6 +266,7 @@ char		*fmri = NULL;
 	if (job_update(job) == -1)
 		goto err;
 
+	LIST_INSERT_HEAD(&jobs, job, job_entries);
 	return (job);
 
 err:
@@ -379,11 +275,11 @@ err:
 	return (NULL);
 }
 
-int
+static int
 unserialise_job(job, buf, sz)
-	job_t	**job;
-	size_t	  sz;
-	char	 *buf;
+	job_t		**job;
+	size_t		  sz;
+	char const	 *buf;
 {
 nvlist_t	*nvl = NULL;
 int32_t		 ct, ca1, ca2, ctid;
@@ -391,8 +287,13 @@ char		*start = NULL, *stop = NULL, *proj = NULL,
 		*fmri = NULL, *username, *logfmt;
 uchar_t		*rctls;
 uint_t		 nrctls;
+char		*nvbuf = NULL;
 
-	if (nvlist_unpack(buf, sz, &nvl, 0)) {
+	if ((nvbuf = malloc(sz)) == NULL)
+		goto err;
+	bcopy(buf, nvbuf, sz);
+
+	if (nvlist_unpack(nvbuf, sz, &nvl, 0)) {
 		logm(LOG_ERR, "unserialise_job: cannot unserialise: %s",
 				strerror(errno));
 		goto err;
@@ -511,6 +412,7 @@ uint_t		 nrctls;
 err:
 	if (nvl)
 		nvlist_free(nvl);
+	free(nvbuf);
 
 	free_job(*job);
 	return (-1);
@@ -520,179 +422,94 @@ job_t *
 find_job(id)
 	job_id_t	id;
 {
-DBT		 key, data;
-DB_TXN		*txn = NULL;
-job_t		*job = NULL;
-int		 err;
+job_t	*job = NULL;
 
-	bzero(&key, sizeof (key));
-	bzero(&data, sizeof (data));
-
-	key.data = &id;
-	key.size = sizeof (id);
-
-	data.flags = DB_DBT_MALLOC;
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "find_job: env txn_begin failed: %s",
-				db_strerror(err));
-		goto err;
+	LIST_FOREACH(job, &jobs, job_entries) {
+		if (job->job_id == id)
+			return (job);
 	}
 
-	if ((err = db_job->get(db_job, txn, &key, &data, 0)) != 0) {
-		if (err != DB_NOTFOUND)
-			logm(LOG_ERR, "find_job: db get failed: %s",
-					db_strerror(err));
-		goto err;
-	}
-
-	if ((err = txn->commit(txn, 0)) != 0) {
-		logm(LOG_ERR, "find_job: txn commit failed: %s",
-				db_strerror(err));
-		txn = NULL;
-		goto err;
-	}
-
-	txn = NULL;
-
-	if (unserialise_job(&job, data.data, data.size) == -1)
-		goto err;
-
-	return (job);
-
-err:
-	if (txn)
-		(void) txn->abort(txn);
-	free_job(job);
 	return (NULL);
-}
 
-struct find_fmri_data {
-	char const	*fmri;
-	int		 nfound;
-	job_id_t	 id;
-};
-
-static int
-find_job_fmri_callback(job, udata)
-	job_t	*job;
-	void	*udata;
-{
-struct find_fmri_data	*data = udata;
-char const		*p, *q;
-
-	/*
-	 * Check for an exact match.
-	 */
-	if (strcmp(data->fmri, job->job_fmri) == 0) {
-		data->id = job->job_id;
-		data->nfound++;
-		return (0);
-	}
-
-	/*
-	 * Sanity: if the job starts with job:/ and wasn't an exact match,
-	 * then it can't exist.
-	 */
-	if (strncmp(data->fmri, "job:/", 5) == 0)
-		return (0);
-
-	/*
-	 * If the spec is longer than the FMRI, it can't possibly match.
-	 * Subtract 4 because the partial FMRI can't match the "job:".
-	 */
-	if (strlen(data->fmri) > strlen(job->job_fmri) - 4)
-		return (0);
-
-	/*
-	 * Start at the end of the string, and match backwards.  Every time
-	 * we see a / in one string, it must match a / in the other.
-	 */
-	p = data->fmri + strlen(data->fmri) - 1;
-	q = job->job_fmri + strlen(job->job_fmri) - 1;
-	for (; p >= data->fmri && q >= job->job_fmri; --p, --q) {
-		if (*p != *q)
-			return (0);
-
-		if (*p == '/' && *q != '/')
-			return (0);
-
-		if (*q == '/' && *p != '/')
-			return (0);
-	}
-
-	/*
-	 * Ensure the last part matched is a full name, which means there
-	 * must be a / before it.
-	 */
-	if (*q != '/')
-		return (0);
-
-	/*
-	 * Match!
-	 */
-	data->id = job->job_id;
-	data->nfound++;
-
-	return (0);
 }
 
 job_t *
 find_job_fmri(fmri)
 	char const	*fmri;
 {
-struct find_fmri_data	data;
-	bzero(&data, sizeof (data));
-	data.fmri = fmri;
+job_t		*job;
+char const	*p, *q;
+	LIST_FOREACH(job, &jobs, job_entries) {
+		/*
+		 * Check for an exact match.
+		 */
+		if (strcmp(fmri, job->job_fmri) == 0)
+			return (job);
 
-	if (job_enumerate(find_job_fmri_callback, &data) == -1)
-		logm(LOG_WARNING, "find_job_fmri: job_enumerate failed");
+		/*
+		 * Sanity: if the job starts with job:/ and wasn't an exact
+		 * match, then it can't exist.
+		 */
+		if (strncmp(fmri, "job:/", 5) == 0)
+			return (NULL);
 
-	if (data.nfound != 1) {
-		return (NULL);
+		/*
+		 * If the spec is longer than the FMRI, it can't possibly match.
+		 * Subtract 4 because the partial FMRI can't match the "job:".
+		 */
+		if (strlen(fmri) > strlen(job->job_fmri) - 4)
+			return (NULL);
+
+		/*
+		 * Start at the end of the string, and match backwards.  Every
+		 * time we see a / in one string, it must match a / in the
+		 * other.
+		 */
+		p = fmri + strlen(fmri) - 1;
+		q = job->job_fmri + strlen(job->job_fmri) - 1;
+		for (; p >= fmri && q >= job->job_fmri; --p, --q) {
+			if (*p != *q)
+				return (NULL);
+
+			if (*p == '/' && *q != '/')
+				return (NULL);
+
+			if (*q == '/' && *p != '/')
+				return (NULL);
+		}
+
+		/*
+		 * Ensure the last part matched is a full name, which means
+		 * there must be a / before it.
+		 */
+		if (*q != '/')
+			return (NULL);
+
+		/* Match! */
+		return (job);
 	}
 
-	return (find_job(data.id));
+	return (NULL);
 }
 
 int
 delete_job(job)
 	job_t	*job;
 {
-DBT	 key;
-DB_TXN	*txn = NULL;
-int	 err;
+char	id[64];
+	(void) snprintf(id, sizeof (id), "%ld", (long)job->job_id);
 
-	bzero(&key, sizeof (key));
-
-	key.data = &job->job_id;
-	key.size = sizeof (job->job_id);
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "delete_job: env txn_begin failed: %s",
-				db_strerror(err));
-		goto err;
-	}
-
-	if ((err = db_job->del(db_job, txn, &key, 0)) != 0) {
+	if (kvtable_delete(table_jobs, id) == -1) {
 		logm(LOG_ERR, "delete_job: db del failed: %s",
-				db_strerror(err));
-		goto err;
-	}
-
-	if ((err = txn->commit(txn, 0)) != 0) {
-		logm(LOG_ERR, "delete_job: txn commit failed: %s",
-				db_strerror(err));
-		txn = NULL;
+		    strerror(errno));
 		goto err;
 	}
 
 	sched_job_deleted(job);
+	LIST_REMOVE(job, job_entries);
 	return (0);
 
 err:
-	if (txn)
-		(void) txn->abort(txn);
 	return (-1);
 }
 
@@ -819,12 +636,9 @@ job_set_fmri(job, fmri)
 {
 char	*news;
 int	 ret;
-job_t	*ejob;
 
-	if ((ejob = find_job_fmri(fmri)) != NULL) {
-		free_job(ejob);
+	if (find_job_fmri(fmri) != NULL)
 		return (-1);
-	}
 
 	if ((news = strdup(fmri)) == NULL)
 		return (-1);
@@ -844,11 +658,9 @@ job_update(job)
 	job_t	*job;
 {
 size_t		 size = 0;
-DBT		 key, data;
-DB_TXN		*txn;
 char		*xbuf = NULL;
-int		 err;
 nvlist_t	*nvl = NULL;
+char		 id[64];
 
 	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0)) {
 		logm(LOG_ERR, "job_update: nvlist_alloc failed: %s",
@@ -891,7 +703,7 @@ nvlist_t	*nvl = NULL;
 		(uchar_t *)job->job_rctls,
 		sizeof (job_rctl_t) * job->job_nrctls) != 0) {
 
-		logm(LOG_ERR, "job_update: " "cannot serialise: %s",
+		logm(LOG_ERR, "job_update: cannot serialise: %s",
 			strerror(errno));
 		goto err;
 	}
@@ -918,33 +730,10 @@ nvlist_t	*nvl = NULL;
 		goto err;
 	}
 
-	bzero(&key, sizeof (key));
-	bzero(&data, sizeof (data));
-
-	key.data = &job->job_id;
-	key.size = sizeof (job->job_id);
-
-	data.data = xbuf;
-	data.size = size;
-	data.ulen = size;
-	data.flags = DB_DBT_USERMEM;
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "job_update: env txn_begin failed: %s",
-				db_strerror(err));
-		goto err;
-	}
-
-	if ((err = db_job->put(db_job, txn, &key, &data, 0)) != 0) {
+	(void) snprintf(id, sizeof (id), "%ld", (long)job->job_id);
+	if (kvtable_replace(table_jobs, id, xbuf, size) == -1) {
 		logm(LOG_ERR, "job_update: db put failed: %s",
-				db_strerror(err));
-		goto err;
-	}
-
-	if ((err = txn->commit(txn, 0)) != 0) {
-		logm(LOG_ERR, "job_update: txn commit failed: %s",
-				db_strerror(err));
-		txn = NULL;
+		    strerror(errno));
 		goto err;
 	}
 
@@ -954,9 +743,6 @@ nvlist_t	*nvl = NULL;
 	return (0);
 
 err:
-	if (txn)
-		(void) txn->abort(txn);
-
 	nvlist_free(nvl);
 	free(xbuf);
 	return (-1);
@@ -993,68 +779,16 @@ job_enumerate_user(username, cb, udata)
 	job_enumerate_callback	 cb;
 	void			*udata;
 {
-DB_TXN	*txn = NULL;
-DBC	*curs = NULL;
-int	 err;
-DBT	 key, data;
-job_t	*job = NULL;
+job_t	*job;
 
-	bzero(&key, sizeof (key));
-	bzero(&data, sizeof (data));
-
-	key.flags = DB_DBT_REALLOC;
-	data.flags = DB_DBT_REALLOC;
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "job_enumerate_user: env txn_begin failed: %s",
-				db_strerror(err));
-		goto err;
-	}
-
-	if ((err = db_job->cursor(db_job, txn, &curs, 0)) != 0) {
-		logm(LOG_ERR, "job_enumerate_user: db cursor failed: %s",
-				db_strerror(err));
-		goto err;
-	}
-
-	while ((err = curs->get(curs, &key, &data, DB_NEXT)) == 0) {
-	job_t	*job;
-
-		if (unserialise_job(&job, data.data, data.size) == -1)
+	LIST_FOREACH(job, &jobs, job_entries) {
+		if (username && strcmp(job->job_username, username))
 			continue;
 
-		if (username && strcmp(job->job_username, username)) {
-			free_job(job);
-			continue;
-		}
-
-		if (cb(job, udata)) {
-			free_job(job);
+		if (cb(job, udata))
 			break;
-		}
-
-		free_job(job);
 	}
-
-	free(key.data);
-	free(data.data);
-	(void) curs->close(curs);
-	(void) txn->commit(txn, 0);
 	return (0);
-
-err:
-	free(key.data);
-	free(data.data);
-
-	if (curs)
-		(void) curs->close(curs);
-
-	if (txn)
-		(void) txn->abort(txn);
-
-	free_job(job);
-
-	return (-1);
 }
 
 int
@@ -1720,55 +1454,40 @@ time_t
 get_boottime(new)
 	time_t	new;
 {
-time_t		 old = 0;
-DBT		 key, data;
-DB_TXN		*txn;
-int		 err;
+time_t		*old;
+size_t		 sz;
+time_t		 t;
 
-	assert(env);
-	assert(db_config);
-
-	if ((err = env->txn_begin(env, NULL, &txn, 0)) != 0) {
-		logm(LOG_ERR, "get_boottime: txn start failed: %s",
-				db_strerror(errno));
-		return (-1);
-	}
-
-	bzero(&key, sizeof (key));
-	bzero(&data, sizeof (data));
-
-	key.data = "last_boottime";
-	key.size = strlen(key.data);
-
-	data.data = &old;
-	data.size = data.ulen = sizeof (old);
-	data.flags = DB_DBT_USERMEM;
-
-	if ((err = db_config->get(db_config, txn, &key, &data, 0)) != 0) {
-		if (err != DB_NOTFOUND) {
+	if (kvtable_get(table_config, "last_boottime",
+	    (char **)&old, &sz) == -1) {
+		if (errno != ENOENT) {
 			logm(LOG_ERR, "get_boottime: db get failed: %s",
-					db_strerror(err));
-			(void) txn->abort(txn);
+			    strerror(errno));
+			free(old);
 			return (-1);
 		}
+
+		t = 0;
+	} else {
+		if (sz != sizeof (*old)) {
+			logm(LOG_ERR, "get_boottime: wrong size %d expected %d",
+			    sz, sizeof (*old));
+			free(old);
+			return (-1);
+		}
+
+		t = *old;
+		free(old);
 	}
 
-	data.data = &new;
-
-	if ((err = db_config->put(db_config, txn, &key, &data, 0)) != 0) {
+	if (kvtable_replace(table_config, "last_boottime",
+	    (char *)&new, sizeof (new)) == -1) {
 		logm(LOG_ERR, "get_boottime: db put failed: %s",
-				db_strerror(err));
-		(void) txn->abort(txn);
+		    strerror(errno));
 		return (-1);
 	}
 
-	if ((err = txn->commit(txn, 0)) != 0) {
-		logm(LOG_ERR, "get_boottime: commit failed: %s",
-				db_strerror(err));
-		return (-1);
-	}
-
-	return (old);
+	return (t);
 }
 
 int

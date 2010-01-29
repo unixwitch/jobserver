@@ -525,7 +525,6 @@ int		 i;
 			}
 		}
 
-		free_job(job);
 		break;
 
 	case CT_PR_EV_CORE:
@@ -687,7 +686,6 @@ char		 timestr[128];
 			logm(LOG_ERR, "sched_handle_fail: "
 				"cannot send mail: %s", strerror(errno));
 	}
-	free_job(job);
 }
 
 static void
@@ -748,7 +746,6 @@ char		 timestr[128];
 				"cannot send mail: %s", strerror(errno));
 	}
 
-	free_job(job);
 }
 
 static void
@@ -811,8 +808,6 @@ char		 timestr[128];
 			logm(LOG_ERR, "sched_handle_crash: "
 				"cannot send mail: %s", strerror(errno));
 	}
-
-	free_job(job);
 }
 
 time_t
@@ -891,8 +886,6 @@ job_t	*job;
 
 	if (sched_start(job) == -1)
 		logm(LOG_WARNING, "sched_run_scheduled: sched_start failed");
-
-	free_job(job);
 }
 
 void

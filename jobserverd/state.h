@@ -13,6 +13,8 @@
 #include	<sys/types.h>
 #include	<rctl.h>
 
+#include	"queue.h"
+
 typedef int32_t job_id_t;
 
 #define	ST_EXIT_DISABLE		0x1	/* Disable on exit */
@@ -61,7 +63,7 @@ typedef struct {
 /*
  * Do not modify the contents of this struct; use the functions below.
  */
-typedef struct {
+typedef struct job {
 	/*
 	 * General information about a job.
 	 */
@@ -80,6 +82,7 @@ typedef struct {
 	char		*job_project;
 	ctid_t		 job_contract;
 	char		*job_logfmt;
+	LIST_ENTRY(job)	 job_entries;
 } job_t;
 
 int	 statedb_init(void);

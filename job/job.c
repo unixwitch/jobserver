@@ -710,29 +710,9 @@ static int
 do_unset_property(fmri, prop)
 	char const	*fmri, *prop;
 {
-char	*key;
 reply_t	*rep;
 
-	if (strcmp(prop, "start") == 0)
-		key = "START";
-	else if (strcmp(prop, "stop") == 0)
-		key = "STOP";
-	else if (strcmp(prop, "name") == 0)
-		key = "NAME";
-	else if (strcmp(prop, "project") == 0)
-		key = "PROJECT";
-	else if (strcmp(prop, "logfmt") == 0)
-		key = "LOGFMT";
-	else if (strcmp(prop, "exit") == 0)
-		key = "EXIT";
-	else if (strcmp(prop, "fail") == 0)
-		key = "FAIL";
-	else if (strcmp(prop, "crash") == 0)
-		key = "CRASH";
-	else
-		return (-1);
-
-	rep = simple_command("USET %s %s", fmri, key);
+	rep = simple_command("USET %s %s", fmri, prop);
 	if (rep->numeric != 200) {
 		(void) fprintf(stderr, "%s\n", rep->text);
 		exit(1);
@@ -748,29 +728,9 @@ do_set_property(fmri, prop, value)
 	char const	*prop;
 	char const	*value;
 {
-char	*key;
 reply_t	*rep;
 
-	if (strcmp(prop, "start") == 0)
-		key = "START";
-	else if (strcmp(prop, "stop") == 0)
-		key = "STOP";
-	else if (strcmp(prop, "fmri") == 0)
-		key = "FMRI";
-	else if (strcmp(prop, "project") == 0)
-		key = "PROJECT";
-	else if (strcmp(prop, "logfmt") == 0)
-		key = "LOGFMT";
-	else if (strcmp(prop, "exit") == 0)
-		key = "EXIT";
-	else if (strcmp(prop, "fail") == 0)
-		key = "FAIL";
-	else if (strcmp(prop, "crash") == 0)
-		key = "CRASH";
-	else
-		return (-1);
-
-	rep = simple_command("CHNG %s :%s=%s", fmri, key, value);
+	rep = simple_command("CHNG %s :%s=%s", fmri, prop, value);
 	if (rep->numeric != 200) {
 		(void) fprintf(stderr, "%s\n", rep->text);
 		exit(1);

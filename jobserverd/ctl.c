@@ -911,19 +911,19 @@ char	*key = arg, *value;
 
 	*value++ = 0;
 
-	if (strcmp(key, "START") == 0) {
+	if (strcmp(key, "start") == 0) {
 		if (job_set_start_method(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change start method.\r\n");
 			return;
 		}
-	} else if (strcmp(key, "STOP") == 0) {
+	} else if (strcmp(key, "stop") == 0) {
 		if (job_set_stop_method(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change stop method.\r\n");
 			return;
 		}
-	} else if (strcmp(key, "FMRI") == 0) {
+	} else if (strcmp(key, "fmri") == 0) {
 	char	*pfx;
 
 		if (!valid_fmri(value)) {
@@ -952,19 +952,19 @@ char	*key = arg, *value;
 			    "Could not change job FMRI.\r\n");
 			return;
 		}
-	} else if (strcmp(key, "PROJECT") == 0) {
+	} else if (strcmp(key, "project") == 0) {
 		if (job_set_project(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change project.\r\n");
 			return;
 		}
-	} else if (strcmp(key, "LOGFMT") == 0) {
+	} else if (strcmp(key, "logfmt") == 0) {
 		if (job_set_logfmt(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change log format.\r\n");
 			return;
 		}
-	} else if (strcmp(key, "ENABLED") == 0) {
+	} else if (strcmp(key, "enabled") == 0) {
 		if (strcmp(value, "1") == 0) {
 			if (job_enable(job) == -1) {
 				(void) ctl_printf(client, "500 "
@@ -982,9 +982,9 @@ char	*key = arg, *value;
 			    "500 Invalid syntax.\r\n");
 			return;
 		}
-	} else if (strcmp(key, "EXIT") == 0 ||
-		strcmp(key, "CRASH") == 0 ||
-		strcmp(key, "FAIL") == 0) {
+	} else if (strcmp(key, "exit") == 0 ||
+		strcmp(key, "crash") == 0 ||
+		strcmp(key, "fail") == 0) {
 	char	*v;
 	int	 action = 0;
 	int (*func)(job_t *, int);
@@ -1011,11 +1011,11 @@ char	*key = arg, *value;
 			return;
 		}
 
-		if (strcmp(key, "EXIT") == 0)
+		if (strcmp(key, "exit") == 0)
 			func = job_set_exit_action;
-		else if (strcmp(key, "CRASH") == 0)
+		else if (strcmp(key, "crash") == 0)
 			func = job_set_crash_action;
-		else if (strcmp(key, "FAIL") == 0)
+		else if (strcmp(key, "fail") == 0)
 			func = job_set_fail_action;
 		else
 			abort();
@@ -1026,7 +1026,7 @@ char	*key = arg, *value;
 			return;
 		}
 	} else {
-		(void) ctl_printf(client, "500 Invalid syntax.\r\n");
+		(void) ctl_printf(client, "500 Unknown property.\r\n");
 		return;
 	}
 

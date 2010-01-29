@@ -573,7 +573,7 @@ c_quota(argc, argv)
 
 	if (argc == 2) {
 	reply_t	*rep;
-		rep = simple_command("CONF %s", argv[1]);
+		rep = simple_command("GCNF %s", argv[1]);
 		(void) printf("%s = %s\n", argv[1], rep->text);
 	} else
 		(void) simple_command("CONF %s %s", argv[1], argv[2]);

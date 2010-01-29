@@ -449,7 +449,7 @@ c_enable(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("CHNG %s ENABLED=1", argv[1]);
+	(void) simple_command("CHNG %s enabled=1", argv[1]);
 	return (0);
 }
 
@@ -514,7 +514,7 @@ int	 c, raw = 0;
 
 	if (argc == 1) {
 	reply_t	*rep;
-		(void) put_server("LISR %s%s", argv[0], raw ? " RAW" : "");
+		(void) put_server("LISR %s%s", argv[0], raw ? " RAW" : "FMT");
 		while (rep = read_line()) {
 			switch (rep->numeric) {
 			case 200:
@@ -592,7 +592,7 @@ c_disable(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("CHNG %s ENABLED=0", argv[1]);
+	(void) simple_command("CHNG %s enabled=0", argv[1]);
 	return (0);
 }
 
@@ -666,6 +666,17 @@ char	*vec[NARG];
 		case 210: (void) printf("     on exit: %s\n", rep->text); break;
 		case 211: (void) printf("     on fail: %s\n", rep->text); break;
 		case 212: (void) printf("    on crash: %s\n", rep->text); break;
+		case 215: {
+		char	*p;
+			if ((p = index(rep->text, ' ')) == NULL) {
+				(void) fprintf(stderr, "Malformed line from server.\r\n");
+				return (1);
+			}
+			*p++ = 0;
+			(void) printf("log rotation: size %d, keep %d\n",
+			    atoi(rep->text), atoi(p)); break;
+			break;
+		}
 		}
 
 		if (rep->numeric == 299) {
@@ -678,7 +689,7 @@ char	*vec[NARG];
 	}
 
 	(void) printf("      limits:");
-	(void) put_server("LISR %s", argv[1]);
+	(void) put_server("LISR %s FMT", argv[1]);
 	while (rep = read_line()) {
 		switch (rep->numeric) {
 		case 200:
@@ -922,7 +933,7 @@ int nopts = 0;
 	}
 
 	if (do_enable)
-		(void) simple_command("CHNG %s ENABLED=1", id);
+		(void) simple_command("CHNG %s enabled=1", id);
 	else if (schedule)
 		(void) simple_command("SCHD %s :%s", id, schedule);
 

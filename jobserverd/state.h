@@ -82,6 +82,8 @@ typedef struct job {
 	char		*job_project;
 	ctid_t		 job_contract;
 	char		*job_logfmt;
+	int		 job_logsize;
+	int		 job_logkeep;
 	LIST_ENTRY(job)	 job_entries;
 } job_t;
 
@@ -179,6 +181,8 @@ int	job_set_project(job_t *, char const *);
 
 /* Set the log format */
 int	job_set_logfmt(job_t *, char const *);
+int	job_set_logsize(job_t *, size_t);
+int	job_set_logkeep(job_t *, int);
 
 /* Count the number of jobs created by a given user. */
 int	njobs_for_user(char const *);

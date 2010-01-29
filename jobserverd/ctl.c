@@ -132,8 +132,9 @@ static struct command {
 		(ARG_T_FMRI | ARG_J_VIEW),
 		ARG_T_STR
 	} },
-	{ "LISR", RUNNING, 1, c_lisr, {
-		(ARG_T_FMRI | ARG_J_VIEW)
+	{ "LISR", RUNNING, 2, c_lisr, {
+		(ARG_T_FMRI | ARG_J_VIEW),
+		ARG_T_STR
 	} },
 	{ "CLRR", RUNNING, 1, c_clrr, {
 		(ARG_T_FMRI | ARG_J_STARTSTOP)
@@ -850,7 +851,9 @@ char		 buf[64];
 	(void) ctl_printf(client, "206 :%s\r\n", job->job_start_method);
 	(void) ctl_printf(client, "207 :%s\r\n", job->job_stop_method);
 	if (job->job_logfmt)
-	(void) ctl_printf(client, "214 :%s\r\n", job->job_logfmt);
+		(void) ctl_printf(client, "214 :%s\r\n", job->job_logfmt);
+	(void) ctl_printf(client, "215 :%d %d\r\n",
+	    job->job_logsize, job->job_logkeep);
 
 	buf[0] = 0;
 	if (job->job_exit_action & ST_EXIT_RESTART)
@@ -962,6 +965,36 @@ char	*key = arg, *value;
 		if (job_set_logfmt(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change log format.\r\n");
+			return;
+		}
+	} else if (strcmp(key, "logkeep") == 0) {
+	int	logkeep;
+	char	*endp;
+		errno = 0;
+		logkeep = strtol(value, &endp, 10);
+		if ((logkeep == 0 && errno != 0) || endp != (value + strlen(value))) {
+			(void) ctl_printf(client, "500 "
+			    "Invalid number.\r\n");
+			return;
+		}
+		if (job_set_logkeep(job, logkeep) == -1) {
+			(void) ctl_printf(client, "500 "
+			    "Could not change value.\r\n");
+			return;
+		}
+	} else if (strcmp(key, "logsize") == 0) {
+	int	logsize;
+	char	*endp;
+		errno = 0;
+		logsize = strtol(value, &endp, 10);
+		if ((logsize == 0 && errno != 0) || endp != (value + strlen(value))) {
+			(void) ctl_printf(client, "500 "
+			    "Invalid number.\r\n");
+			return;
+		}
+		if (job_set_logsize(job, logsize) == -1) {
+			(void) ctl_printf(client, "500 "
+			    "Could not change value.\r\n");
 			return;
 		}
 	} else if (strcmp(key, "enabled") == 0) {

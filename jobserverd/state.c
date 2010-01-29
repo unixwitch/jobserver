@@ -263,6 +263,9 @@ char		*fmri = NULL;
 	job->job_exit_action = ST_EXIT_DISABLE | ST_EXIT_MAIL;
 	job->job_crash_action = ST_EXIT_DISABLE | ST_EXIT_MAIL;
 
+	job->job_logsize = (1024 * 1024);
+	job->job_logkeep = 5;
+
 	if (job_update(job) == -1)
 		goto err;
 
@@ -288,6 +291,7 @@ char		*start = NULL, *stop = NULL, *proj = NULL,
 uchar_t		*rctls;
 uint_t		 nrctls;
 char		*nvbuf = NULL;
+int32_t		 i;
 
 	if ((nvbuf = malloc(sz)) == NULL)
 		goto err;
@@ -323,10 +327,6 @@ char		*nvbuf = NULL;
 		goto err;
 	}
 
-	/*
-	 * Pre-FMRI jobs have a name and uid instead of an FMRI.  Check for
-	 * this and convert them to new-style jobs.
-	 */
 	if (nvlist_lookup_string(nvl, "username", &username) == 0 &&
 	    nvlist_lookup_string(nvl, "fmri", &fmri) == 0) {
 		if (((*job)->job_fmri = strdup(fmri)) == NULL ||
@@ -335,38 +335,23 @@ char		*nvbuf = NULL;
 			goto err;
 		}
 	} else {
-	struct passwd	*pwd;
-	int32_t		 uid;
-	char		*name;
-		if (nvlist_lookup_string(nvl, "name", &name) ||
-		    nvlist_lookup_int32(nvl, "user", &uid)) {
-			logm(LOG_ERR, "unserialise_job: "
-			    "found neither fmri nor name/uid");
-			goto err;
-		}
-
-		if ((pwd = getpwuid(uid)) == NULL) {
-			logm(LOG_ERR, "unserialise_job: "
-			    "couldn't find user %d", (int)uid);
-			goto err;
-		}
-
-		if (asprintf(&(*job)->job_fmri, "job:/%s/%s",
-				pwd->pw_name, name) == -1) {
-			logm(LOG_ERR, "unserialise_job: out of memory");
-			goto err;
-		}
-
-		if (((*job)->job_username = strdup(pwd->pw_name)) == NULL) {
-			logm(LOG_ERR, "unserialise_job: out of memory");
-			goto err;
-		}
+		logm(LOG_ERR, "unserialise_job: no FMRI");
 	}
 
 	if (nvlist_lookup_int32(nvl, "ctid", &ctid) == 0)
 		(*job)->job_contract = ctid;
 	else
 		(*job)->job_contract = -1;
+
+	if (nvlist_lookup_int32(nvl, "logkeep", &i) == 0)
+		(*job)->job_logkeep = i;
+	else
+		(*job)->job_logkeep = 5;
+
+	if (nvlist_lookup_int32(nvl, "logsize", &i) == 0)
+		(*job)->job_logsize = i;
+	else
+		(*job)->job_logsize = 5;
 
 	if (nvlist_lookup_byte_array(nvl, "rctls", &rctls, &nrctls) == 0) {
 		/*LINTED*/
@@ -686,7 +671,11 @@ char		 id[64];
 		nvlist_add_uint32(nvl, "fail_action",
 			job->job_fail_action) != 0 ||
 		nvlist_add_int32(nvl, "ctid",
-			(int)job->job_contract) != 0 ||
+			(int32_t)job->job_contract) != 0 ||
+		nvlist_add_int32(nvl, "logkeep",
+			(int32_t)job->job_logkeep) != 0 ||
+		nvlist_add_int32(nvl, "logsize",
+			(int32_t)job->job_logsize) != 0 ||
 		nvlist_add_int32(nvl, "cron_type",
 			(int32_t)job->job_schedule.cron_type) != 0 ||
 		nvlist_add_int32(nvl, "cron_arg1",
@@ -1357,6 +1346,38 @@ char	*np = NULL;
 err:
 	free(np);
 	return (-1);
+}
+
+int
+job_set_logkeep(job, logkeep)
+	job_t	*job;
+	int	logkeep;
+{
+	assert(job);
+
+	job->job_logkeep = logkeep;
+	if (job_update(job) == -1) {
+		logm(LOG_ERR, "job_set_logkeep: job_update failed");
+		return (-1);
+	}
+
+	return (0);
+}
+
+int
+job_set_logsize(job, logsize)
+	job_t	*job;
+	size_t	logsize;
+{
+	assert(job);
+
+	job->job_logsize = logsize;
+	if (job_update(job) == -1) {
+		logm(LOG_ERR, "job_set_logsize: job_update failed");
+		return (-1);
+	}
+
+	return (0);
 }
 
 int

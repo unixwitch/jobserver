@@ -336,7 +336,8 @@ char		 *s, *p;
 	(void) asprintf(&envfile, "%s/.environment", pwd->pw_dir);
 	(void) load_environment(&env, i, envfile);
 
-	if ((lwfd = fork_logwriter(logfile, job->job_logsize, job->job_logkeep)) == -1) {
+	if ((lwfd = fork_logwriter(logfile, job->job_logsize,
+	    job->job_logkeep)) == -1) {
 		(void) printf("[ Cannot start logwriter: %s. ]\n",
 				strerror(errno));
 		(void) printf("[ Job start aborted. ]\n");

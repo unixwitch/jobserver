@@ -288,13 +288,14 @@ c_schedule(argc, argv)
 	char	**argv;
 {
 	if (argc != 3) {
-		(void) fprintf(stderr, "schedule: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "schedule: "
+		    "wrong number of arguments\n\n");
 		(void) fprintf(stderr, "%s", u_schedule);
 		return (1);
 	}
 
 	(void) simple_command("SCHD %s :%s", argv[1], argv[2]);
-	return 0;
+	return (0);
 }
 
 int
@@ -318,7 +319,8 @@ int	c, stop = 0;
 	argv += optind;
 
 	if (argc != 1) {
-		(void) fprintf(stderr, "unschedule: wrong number of arguments\n\n");
+		(void) fprintf(stderr, "unschedule: "
+		    "wrong number of arguments\n\n");
 		(void) fprintf(stderr, "%s", u_unschedule);
 		return (1);
 	}
@@ -326,7 +328,7 @@ int	c, stop = 0;
 	if (stop)
 		(void) simple_command("STOP %s", argv[0]);
 	(void) simple_command("USHD %s", argv[0]);
-	return 0;
+	return (0);
 }
 
 /*ARGSUSED*/
@@ -583,7 +585,8 @@ char	*vec[NARG];
 		case 215: {
 		char	*p;
 			if ((p = index(rep->text, ' ')) == NULL) {
-				(void) fprintf(stderr, "Malformed line from server.\r\n");
+				(void) fprintf(stderr,
+				    "Malformed line from server.\r\n");
 				return (1);
 			}
 			*p++ = 0;

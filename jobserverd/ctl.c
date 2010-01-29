@@ -72,16 +72,16 @@ static void ctl_close(ctl_client_t *);
 static int ctl_printf(ctl_client_t *, char const *, ...);
 
 #define	ARG_T_INT	0x1
-#define ARG_T_STR	0x2
-#define ARG_T_FMRI	0x4
-#define ARG_T_REST	0x8
-#define ARG_T_MASK	0xF
+#define	ARG_T_STR	0x2
+#define	ARG_T_FMRI	0x4
+#define	ARG_T_REST	0x8
+#define	ARG_T_MASK	0xF
 
-#define ARG_J_VIEW	0x1000
-#define ARG_J_STARTSTOP	0x2000
-#define ARG_J_MODIFY	0x4000
-#define ARG_J_DELETE	0x8000
-#define ARG_J_MASK	0xF000
+#define	ARG_J_VIEW	0x1000
+#define	ARG_J_STARTSTOP	0x2000
+#define	ARG_J_MODIFY	0x4000
+#define	ARG_J_DELETE	0x8000
+#define	ARG_J_MASK	0xF000
 
 #define	MAXARGS 16
 
@@ -104,7 +104,7 @@ static struct command {
 	} },
 	{ "LIST", RUNNING, 0, c_list },
 	{ "CHNG", RUNNING, 2, c_chng, {
-		(ARG_T_FMRI | ARG_J_MODIFY), 
+		(ARG_T_FMRI | ARG_J_MODIFY),
 		ARG_T_STR
 	} },
 	{ "SCHD", RUNNING, 2, c_schd, {
@@ -135,7 +135,7 @@ static struct command {
 		(ARG_T_FMRI | ARG_J_STARTSTOP)
 	} },
 	{ "USET", RUNNING, 2, c_uset, {
-		(ARG_T_FMRI | ARG_J_MODIFY), 
+		(ARG_T_FMRI | ARG_J_MODIFY),
 		ARG_T_STR
 	} },
 	{ "STOP", RUNNING, 1, c_stop, {
@@ -422,7 +422,7 @@ struct command	*cmds = NULL;
 			ctl_close(client);
 		return;
 	}
-	
+
 	for (i = 0; i < sizeof (commands) / sizeof (*commands); ++i) {
 		if (strcmp(cmd, commands[i].cmd))
 			continue;
@@ -439,7 +439,8 @@ struct command	*cmds = NULL;
 	}
 
 	if (!cmds) {
-		if (ctl_printf(client, "500 %s: Unknown command.\r\n", cmd) == -1)
+		if (ctl_printf(client, "500 %s: "
+		    "Unknown command.\r\n", cmd) == -1)
 			ctl_close(client);
 		return;
 	}
@@ -957,7 +958,8 @@ char	*key = arg, *value;
 	char	*endp;
 		errno = 0;
 		logkeep = strtol(value, &endp, 10);
-		if ((logkeep == 0 && errno != 0) || endp != (value + strlen(value))) {
+		if ((logkeep == 0 && errno != 0) ||
+		    endp != (value + strlen(value))) {
 			(void) ctl_printf(client, "500 "
 			    "Invalid number.\r\n");
 			return;
@@ -972,7 +974,8 @@ char	*key = arg, *value;
 	char	*endp;
 		errno = 0;
 		logsize = strtol(value, &endp, 10);
-		if ((logsize == 0 && errno != 0) || endp != (value + strlen(value))) {
+		if ((logsize == 0 && errno != 0) ||
+		    endp != (value + strlen(value))) {
 			(void) ctl_printf(client, "500 "
 			    "Invalid number.\r\n");
 			return;
@@ -1048,7 +1051,8 @@ char	*key = arg, *value;
 	char		*endp;
 		errno = 0;
 		qty = strtoull(value, &endp, 10);
-		if ((qty == 0 && errno != 0) || endp != (value + strlen(value))) {
+		if ((qty == 0 && errno != 0) ||
+		    endp != (value + strlen(value))) {
 			(void) ctl_printf(client, "500 "
 			    "Invalid number.\r\n");
 			return;

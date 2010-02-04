@@ -13,6 +13,7 @@
 #include	<stdlib.h>
 #include	<dirent.h>
 #include	<string.h>
+#include	<libnvpair.h>
 
 #include	"kvdb.h"
 
@@ -261,6 +262,67 @@ err:
 	return (-1);
 }
 
+int
+kvenumerate_nvlist(table, callback, udata)
+	kvtable_t	 table;
+	void		*udata;
+	kvenumerate_nvlist_callback callback;
+{
+int		 fd = -1, ffd = -1;
+DIR		*dir = NULL;
+struct dirent	*de;
+void		*addr;
+struct stat	 sb;
+nvlist_t	*nvl = NULL;
+	if ((fd = dup(table)) == -1)
+		goto err;
+	if ((dir = fdopendir(fd)) == NULL)
+		goto err;
+	while ((de = readdir(dir)) != NULL) {
+	int	stop;
+
+		if (*de->d_name == '.')
+			continue;
+
+		if ((ffd = openat(table, de->d_name, O_RDONLY)) == -1)
+			goto err;
+		if (fstat(ffd, &sb) == -1)
+			goto err;
+		if ((addr = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE,
+		    ffd, 0)) == MAP_FAILED)
+			goto err;
+		if (nvlist_unpack(addr, sb.st_size, &nvl, 0))
+			goto err;
+
+		stop = callback(de->d_name, nvl, udata);
+
+		nvlist_free(nvl);
+		nvl = NULL;
+		(void) munmap(addr, sb.st_size);
+		addr = NULL;
+
+		(void) close(ffd);
+		ffd = -1;
+		if (stop)
+			break;
+	}
+
+	(void) closedir(dir);
+	(void) close(fd);
+	return (0);
+
+err:
+	if (dir)
+		(void) closedir(dir);
+	else if (fd != -1)
+		(void) close(fd);
+	if (addr)
+		(void) munmap(addr, sb.st_size);
+	if (ffd != -1)
+		(void) close(ffd);
+
+	return (-1);
+}
 kvcursor_t *
 kvcursor_open(table)
 	kvtable_t	table;
@@ -345,4 +407,61 @@ err:
 	free(*rkey);
 	free(*rdata);
 	return (-1);
+}
+
+int
+kvtable_get_nvlist(table, key, nvl)
+	kvtable_t	table;
+	char const	*key;
+	nvlist_t	**nvl;
+{
+char	*buf = NULL;
+size_t	 bsz;
+	if (kvtable_get(table, key, &buf, &bsz) == -1)
+		return -1;
+	if (nvlist_unpack(buf, bsz, nvl, 0))
+		goto err;
+	free(buf);
+	return 0;
+err:
+	free(buf);
+	return -1;
+}
+
+int
+kvtable_insert_nvlist(table, key, nvl)
+	kvtable_t	table;
+	char const	*key;
+	nvlist_t	*nvl;
+{
+char	*buf = NULL;
+size_t	 bsz;
+	if (nvlist_pack(nvl, &buf, &bsz, NV_ENCODE_NATIVE, 0))
+		goto err;
+	if (kvtable_insert(table, key, buf, bsz) == -1)
+		goto err;
+	free(buf);
+	return 0;
+err:
+	free(buf);
+	return -1;
+}
+
+int
+kvtable_replace_nvlist(table, key, nvl)
+	kvtable_t	table;
+	char const	*key;
+	nvlist_t	*nvl;
+{
+char	*buf = NULL;
+size_t	 bsz;
+	if (nvlist_pack(nvl, &buf, &bsz, NV_ENCODE_NATIVE, 0))
+		goto err;
+	if (kvtable_replace(table, key, buf, bsz) == -1)
+		goto err;
+	free(buf);
+	return 0;
+err:
+	free(buf);
+	return -1;
 }

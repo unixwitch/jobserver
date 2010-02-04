@@ -30,19 +30,19 @@ static int db = -1;
 static int table_jobs = -1;
 static int table_config = -1;
 
-static int unserialise_job(job_t **, char const *, size_t);
+static int unserialise_job(job_t **, nvlist_t *nvl);
 
 static LIST_HEAD(job_list, job) jobs;
 
 static int
-load_job_callback(key, data, sz, udata)
-	char const	*key, *data;
-	size_t		 sz;
+load_job_callback(key, nvl, udata)
+	char const	*key;
+	nvlist_t	*nvl;
 	void		*udata;
 {
 job_t	*job;
 int	*nerrs = udata;
-	if (unserialise_job(&job, data, sz) == -1) {
+	if (unserialise_job(&job, nvl) == -1) {
 		logm(LOG_ERR, "load_job_callback: unserialise failed");
 		(*nerrs)++;
 		return (1);
@@ -94,7 +94,7 @@ int		nerrs = 0;
 		goto err;
 	}
 
-	if (kvenumerate(table_jobs, load_job_callback, &nerrs) == -1) {
+	if (kvenumerate_nvlist(table_jobs, load_job_callback, &nerrs) == -1) {
 		logm(LOG_ERR, "statedb_init: kvenumerate: %s",
 		    strerror(errno));
 		goto err;
@@ -279,29 +279,16 @@ err:
 }
 
 static int
-unserialise_job(job, buf, sz)
+unserialise_job(job, nvl)
 	job_t		**job;
-	size_t		  sz;
-	char const	 *buf;
+	nvlist_t	*nvl;
 {
-nvlist_t	*nvl = NULL;
 int32_t		 ct, ca1, ca2, ctid;
 char		*start = NULL, *stop = NULL, *proj = NULL,
 		*fmri = NULL, *username, *logfmt;
 uchar_t		*rctls;
 uint_t		 nrctls;
-char		*nvbuf = NULL;
 int32_t		 i;
-
-	if ((nvbuf = malloc(sz)) == NULL)
-		goto err;
-	bcopy(buf, nvbuf, sz);
-
-	if (nvlist_unpack(nvbuf, sz, &nvl, 0)) {
-		logm(LOG_ERR, "unserialise_job: cannot unserialise: %s",
-				strerror(errno));
-		goto err;
-	}
 
 	if ((*job = calloc(1, sizeof (job_t))) == NULL) {
 		logm(LOG_ERR, "unserialise_job: out of memory");
@@ -391,14 +378,9 @@ int32_t		 i;
 		goto err;
 	}
 
-	(void) nvlist_free(nvl);
 	return (0);
 
 err:
-	if (nvl)
-		nvlist_free(nvl);
-	free(nvbuf);
-
 	free_job(*job);
 	return (-1);
 }
@@ -642,8 +624,6 @@ static int
 job_update(job)
 	job_t	*job;
 {
-size_t		 size = 0;
-char		*xbuf = NULL;
 nvlist_t	*nvl = NULL;
 char		 id[64];
 
@@ -713,27 +693,19 @@ char		 id[64];
 		}
 	}
 
-	if (nvlist_pack(nvl, &xbuf, &size, NV_ENCODE_NATIVE, 0)) {
-		logm(LOG_ERR, "job_update: " "cannot serialise: %s",
-			strerror(errno));
-		goto err;
-	}
-
 	(void) snprintf(id, sizeof (id), "%ld", (long)job->job_id);
-	if (kvtable_replace(table_jobs, id, xbuf, size) == -1) {
+	if (kvtable_replace_nvlist(table_jobs, id, nvl) == -1) {
 		logm(LOG_ERR, "job_update: db put failed: %s",
 		    strerror(errno));
 		goto err;
 	}
 
 	nvlist_free(nvl);
-	free(xbuf);
 
 	return (0);
 
 err:
 	nvlist_free(nvl);
-	free(xbuf);
 	return (-1);
 }
 

@@ -42,16 +42,23 @@ void		kvtable_close(kvtable_t);
  */
 
 int	kvtable_get(kvtable_t, char const *, char **, size_t *);
+int	kvtable_get_nvlist(kvtable_t, char const *, nvlist_t **);
 int	kvtable_insert(kvtable_t, char const *, char const *, size_t);
+int	kvtable_insert_nvlist(kvtable_t, char const *, nvlist_t *);
 int	kvtable_replace(kvtable_t, char const *, char const *, size_t);
+int	kvtable_replace_nvlist(kvtable_t, char const *, nvlist_t *);
 int	kvtable_delete(kvtable_t, char const *);
 
 /*
  * Execute a function for every key in a table.  If the function returns 1,
  * execution will terminate.
  */
-typedef int (*kvenumerate_callback)(char const *, char const *, size_t, void *);
+typedef int (*kvenumerate_callback) (char const *,
+		char const *, size_t, void *);
 int	kvenumerate(kvtable_t, kvenumerate_callback, void *);
+typedef int (*kvenumerate_nvlist_callback) (char const *,
+		nvlist_t *, void *);
+int	kvenumerate_nvlist(kvtable_t, kvenumerate_nvlist_callback, void *);
 
 /*
  * Open a cursor that can be used to visit all records.

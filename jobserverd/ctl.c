@@ -906,12 +906,14 @@ char	*key = arg, *value;
 			    "Could not change start method.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (strcmp(key, "stop") == 0) {
 		if (job_set_stop_method(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change stop method.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (strcmp(key, "fmri") == 0) {
 	char	*pfx;
 
@@ -941,18 +943,47 @@ char	*key = arg, *value;
 			    "Could not change job FMRI.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
+	} else if (strcmp(key, "name") == 0) {
+	char	*fmri;
+		if (asprintf(&fmri, "job:/%s/%s",
+		    client->cc_name, value) == -1) {
+			(void) ctl_printf(client,
+			    "500 Internal error.\r\n");
+			logm(LOG_ERR, "out of memory");
+			return;
+		}
+
+		if (!valid_fmri(fmri)) {
+			(void) ctl_printf(client,
+			    "500 Invalid name.\r\n");
+			free(fmri);
+			return;
+		}
+
+		if (job_set_fmri(job, fmri) == -1) {
+			(void) ctl_printf(client, "500 "
+			    "Could not change job FMRI.\r\n");
+		} else {
+			(void) ctl_printf(client, "200 OK.\r\n");
+		}
+
+		free(fmri);
+		return;
 	} else if (strcmp(key, "project") == 0) {
 		if (job_set_project(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change project.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (strcmp(key, "logfmt") == 0) {
 		if (job_set_logfmt(job, value) == -1) {
 			(void) ctl_printf(client, "500 "
 			    "Could not change log format.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (strcmp(key, "logkeep") == 0) {
 	int	logkeep;
 	char	*endp;
@@ -969,6 +1000,7 @@ char	*key = arg, *value;
 			    "Could not change value.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (strcmp(key, "logsize") == 0) {
 	int	logsize;
 	char	*endp;
@@ -985,6 +1017,7 @@ char	*key = arg, *value;
 			    "Could not change value.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (strcmp(key, "enabled") == 0) {
 		if (strcmp(value, "1") == 0) {
 			if (job_enable(job) == -1) {
@@ -1003,6 +1036,7 @@ char	*key = arg, *value;
 			    "500 Invalid syntax.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (strcmp(key, "exit") == 0 ||
 		strcmp(key, "crash") == 0 ||
 		strcmp(key, "fail") == 0) {
@@ -1046,6 +1080,7 @@ char	*key = arg, *value;
 			    "Cannot set action.\r\n");
 			return;
 		}
+		(void) ctl_printf(client, "200 OK.\r\n");
 	} else if (is_valid_rctl(key)) {
 	u_longlong_t	 qty;
 	char		*endp;
@@ -1063,9 +1098,10 @@ char	*key = arg, *value;
 			    "Resource control \"%s\" not set.\r\n", key);
 		else
 			(void) ctl_printf(client, "200 OK.\r\n");
+	} else {
+		(void) ctl_printf(client, "500 Invalid property.\r\n");
+		return;
 	}
-
-	(void) ctl_printf(client, "200 OK.\r\n");
 }
 
 static void

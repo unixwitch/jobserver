@@ -784,7 +784,7 @@ int
 job_unschedule(job)
 	job_t	*job;
 {
-	job->job_flags &= ~JOB_SCHEDULED;
+	job->job_flags &= ~(JOB_SCHEDULED | JOB_ENABLED);
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_schedule: warning: job_update failed");
 
@@ -947,11 +947,12 @@ char	 s[64];
 	}
 
 	job->job_schedule = cron;
-	job->job_flags |= JOB_SCHEDULED;
+	job->job_flags |= (JOB_SCHEDULED | JOB_ENABLED);
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_schedule: warning: job_update failed");
 
 	sched_job_scheduled(job);
+	sched_job_enabled(job);
 
 	return (0);
 

@@ -16,6 +16,7 @@
 #include	"state.h"
 #include	"event.h"
 #include	"ct.h"
+#include	"queue.h"
 
 /*
  * If a non-scheduled job is running for less than this many seconds, we
@@ -33,7 +34,7 @@ typedef enum {
 	SJOB_STOPPED
 } sjob_state_t;
 
-typedef struct {
+typedef struct sjob {
 	job_id_t	 sjob_id;		/* job this sjob represents */
 	sjob_state_t	 sjob_state;
 	contract_t	*sjob_contract;
@@ -44,6 +45,7 @@ typedef struct {
 	time_t		 sjob_nextrun;
 	time_t		 sjob_start_time;
 	char const	*sjob_lasterr;
+	LIST_ENTRY(sjob) sjob_entries;
 } sjob_t;
 
 int sched_start(job_t *);

@@ -29,8 +29,7 @@
 #include	"fd.h"
 #include	"execute.h"
 
-static sjob_t	*sjobs;
-static int	 nsjobs;
+static LIST_HEAD(sjob_list, sjob) sjobs;
 
 static sjob_t *sjob_find(job_id_t id);
 static void free_sjob(sjob_t *);
@@ -131,45 +130,32 @@ sjob_t *
 sjob_find(id)
 	job_id_t	id;
 {
-int	 i;
-sjob_t	*nsj, *nj = NULL;
-	for (i = 0; i < nsjobs; ++i) {
-		if (sjobs[i].sjob_id == -1 && nj == NULL)
-			nj = &sjobs[i];
-
-		if (sjobs[i].sjob_id == id)
-			return (&sjobs[i]);
+sjob_t	*sj;
+	LIST_FOREACH(sj, &sjobs, sjob_entries) {
+		if (sj->sjob_id == id)
+			return (sj);
 	}
 
-	if (nj == NULL) {
-		if ((nsj = realloc(sjobs,
-				(nsjobs + 1) * sizeof (sjob_t))) == NULL) {
-			logm(LOG_ERR, "sjob_find: out of memory");
-			return (NULL);
-		}
-
-		sjobs = nsj;
-		nj = &sjobs[nsjobs];
-		nsjobs++;
+	if ((sj = calloc(1, sizeof(*sj))) == NULL) {
+		logm(LOG_ERR, "sjob_find: out of memory");
+		return (NULL);
 	}
 
-	bzero(nj, sizeof (*nj));
-	nj->sjob_id = id;
-	nj->sjob_timer = -1;
-	nj->sjob_state = SJOB_STOPPED;
-	return (nj);
+	sj->sjob_id = id;
+	sj->sjob_timer = -1;
+	sj->sjob_state = SJOB_STOPPED;
+	LIST_INSERT_HEAD(&sjobs, sj, sjob_entries);
+	return (sj);
 }
 
 int
 sched_jobs_running()
 {
-int	 i, n = 0;
-	for (i = 0; i < nsjobs; ++i) {
-		if (sjobs[i].sjob_id == -1)
-			continue;
-
-		if (sjobs[i].sjob_state == SJOB_RUNNING ||
-		    sjobs[i].sjob_state == SJOB_STOPPING)
+int	 n = 0;
+sjob_t	*sj;
+	LIST_FOREACH(sj, &sjobs, sjob_entries) {
+		if (sj->sjob_state == SJOB_RUNNING ||
+		    sj->sjob_state == SJOB_STOPPING)
 			n++;
 	}
 
@@ -179,14 +165,10 @@ int	 i, n = 0;
 void
 sched_stop_all()
 {
-int	 i;
-
-	for (i = 0; i < nsjobs; ++i) {
+sjob_t	*sj;
+	LIST_FOREACH(sj, &sjobs, sjob_entries) {
 	job_t	*job;
-		if (sjobs[i].sjob_id == -1)
-			continue;
-
-		if (sjobs[i].sjob_state == SJOB_RUNNING) {
+		if (sj->sjob_state == SJOB_RUNNING) {
 #if 0	/* Enable this when contract adoption is working */
 			if (ct_ctl_abandon(sjobs[i].sjob_contract->ct_ctl)
 			    == -1)
@@ -195,10 +177,10 @@ int	 i;
 				    (int)sjobs[i].sjob_contract->ct_id,
 				    strerror(errno));
 #else
-			if ((job = find_job(sjobs[i].sjob_id)) == NULL) {
+			if ((job = find_job(sj->sjob_id)) == NULL) {
 				logm(LOG_WARNING, "sched_stop_all: could not "
 				    "find job for sjob id %d",
-				    sjobs[i].sjob_id);
+				    sj->sjob_id);
 				continue;
 			}
 
@@ -341,16 +323,14 @@ free_sjob(sjob)
 	if (!sjob)
 		return;
 
+	if (sjob->sjob_contract && sjob->sjob_contract->ct_events != -1)
+		close_fd(sjob->sjob_contract->ct_events);
+	if (sjob->sjob_contract && sjob->sjob_stop_contract->ct_events != -1)
+		close_fd(sjob->sjob_stop_contract->ct_events);
 	contract_close(sjob->sjob_contract);
 	contract_close(sjob->sjob_stop_contract);
-	if (sjob->sjob_contract->ct_events != -1)
-		close_fd(sjob->sjob_contract->ct_events);
-	if (sjob->sjob_stop_contract->ct_events != -1)
-		close_fd(sjob->sjob_stop_contract->ct_events);
 
-	sjob->sjob_contract = NULL;
-	sjob->sjob_stop_contract = NULL;
-	sjob->sjob_id = -1;
+	LIST_REMOVE(sjob, sjob_entries);
 }
 
 void
@@ -400,16 +380,8 @@ sched_job_deleted(job)
 	job_t	*job;
 {
 sjob_t	*sjob;
-int	 i;
-	for (i = 0; i < nsjobs; ++i) {
-		if (sjobs[i].sjob_id == -1)
-			continue;
-
-		if (sjobs[i].sjob_id == job->job_id) {
-			sjob = &sjobs[i];
-			break;
-		}
-	}
+	if ((sjob = sjob_find(job->job_id)) == NULL)
+		abort();
 
 	free_sjob(sjob);
 }
@@ -428,15 +400,10 @@ int		 sig, status = 0;
 job_t		*job = NULL;
 int		 i;
 
-	for (i = 0; i < nsjobs; ++i) {
-		if (sjobs[i].sjob_id == -1)
-			continue;
-
-		if (sjobs[i].sjob_contract &&
-		    sjobs[i].sjob_contract->ct_events == fd) {
-			sjob = &sjobs[i];
+	LIST_FOREACH(sjob, &sjobs, sjob_entries) {
+		if (sjob->sjob_contract &&
+		    sjob->sjob_contract->ct_events == fd)
 			break;
-		}
 	}
 
 	assert(type == FDE_READ);

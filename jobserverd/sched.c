@@ -343,6 +343,10 @@ free_sjob(sjob)
 
 	contract_close(sjob->sjob_contract);
 	contract_close(sjob->sjob_stop_contract);
+	if (sjob->sjob_contract->ct_events != -1)
+		close_fd(sjob->sjob_contract->ct_events);
+	if (sjob->sjob_stop_contract->ct_events != -1)
+		close_fd(sjob->sjob_stop_contract->ct_events);
 
 	sjob->sjob_contract = NULL;
 	sjob->sjob_stop_contract = NULL;
@@ -467,6 +471,7 @@ int		 i;
 			sjob->sjob_stop_contract = NULL;
 		}
 
+		close_fd(sjob->sjob_contract->ct_events);
 		if (ct_ctl_abandon(sjob->sjob_contract->ct_ctl) == -1)
 			logm(LOG_WARNING, "job %ld: ct_ctl_abandon failed: %s",
 					(long)sjob->sjob_id, strerror(errno));

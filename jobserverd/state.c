@@ -418,14 +418,14 @@ char const	*p, *q;
 		 * match, then it can't exist.
 		 */
 		if (strncmp(fmri, "job:/", 5) == 0)
-			return (NULL);
+			continue;
 
 		/*
 		 * If the spec is longer than the FMRI, it can't possibly match.
 		 * Subtract 4 because the partial FMRI can't match the "job:".
 		 */
 		if (strlen(fmri) > strlen(job->job_fmri) - 4)
-			return (NULL);
+			continue;
 
 		/*
 		 * Start at the end of the string, and match backwards.  Every
@@ -436,13 +436,13 @@ char const	*p, *q;
 		q = job->job_fmri + strlen(job->job_fmri) - 1;
 		for (; p >= fmri && q >= job->job_fmri; --p, --q) {
 			if (*p != *q)
-				return (NULL);
+				continue;
 
 			if (*p == '/' && *q != '/')
-				return (NULL);
+				continue;
 
 			if (*q == '/' && *p != '/')
-				return (NULL);
+				continue;
 		}
 
 		/*
@@ -450,7 +450,7 @@ char const	*p, *q;
 		 * there must be a / before it.
 		 */
 		if (*q != '/')
-			return (NULL);
+			continue;
 
 		/* Match! */
 		return (job);

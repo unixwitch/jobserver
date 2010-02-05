@@ -77,6 +77,7 @@ main(argc, argv)
 struct rlimit	nofile;
 
 	openlog(argv[0], LOG_PID, LOG_DAEMON);
+	current_time = time(NULL);
 
 	/*
 	 * We need quite a few fds.

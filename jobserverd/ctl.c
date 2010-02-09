@@ -371,23 +371,25 @@ job_t		*job = NULL;
 		}
 
 		if ((job = find_job_fmri(fmri)) == NULL) {
-			if (ctl_error(client, "FMRI not specified") == -1)
+			if (ctl_error(client, "Job not found") == -1)
 				ctl_close(client);
 			return;
 		}
 
-		if ((cmds->flags & CMD_J_MASK) & CMD_J_VIEW)
-			action |= JOB_VIEW;
-		if ((cmds->flags & CMD_J_MASK) & CMD_J_MODIFY)
-			action |= JOB_MODIFY;
-		if ((cmds->flags & CMD_J_MASK) & CMD_J_STARTSTOP)
-			action |= JOB_STARTSTOP;
-		if ((cmds->flags & CMD_J_MASK) & CMD_J_DELETE)
-			action |= JOB_DELETE;
-		if (!job_access(job, client->cc_name, action)) {
-			if (ctl_error(client, "Permission denied") == -1)
-				ctl_close(client);
-			return;
+		if (!client->cc_admin) {
+			if ((cmds->flags & CMD_J_MASK) & CMD_J_VIEW)
+				action |= JOB_VIEW;
+			if ((cmds->flags & CMD_J_MASK) & CMD_J_MODIFY)
+				action |= JOB_MODIFY;
+			if ((cmds->flags & CMD_J_MASK) & CMD_J_STARTSTOP)
+				action |= JOB_STARTSTOP;
+			if ((cmds->flags & CMD_J_MASK) & CMD_J_DELETE)
+				action |= JOB_DELETE;
+			if (!job_access(job, client->cc_name, action)) {
+				if (ctl_error(client, "Permission denied") == -1)
+					ctl_close(client);
+				return;
+			}
 		}
 	}
 

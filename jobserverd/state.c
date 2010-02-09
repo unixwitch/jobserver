@@ -436,13 +436,13 @@ char const	*p, *q;
 		q = job->job_fmri + strlen(job->job_fmri) - 1;
 		for (; p >= fmri && q >= job->job_fmri; --p, --q) {
 			if (*p != *q)
-				continue;
+				goto next;
 
 			if (*p == '/' && *q != '/')
-				continue;
+				goto next;
 
 			if (*q == '/' && *p != '/')
-				continue;
+				goto next;
 		}
 
 		/*
@@ -454,6 +454,8 @@ char const	*p, *q;
 
 		/* Match! */
 		return (job);
+
+next:		;
 	}
 
 	return (NULL);
@@ -757,6 +759,14 @@ job_unschedule(job)
 	job_t	*job;
 {
 	job->job_flags &= ~(JOB_SCHEDULED | JOB_ENABLED);
+
+	/*
+	 * When unschedling a shceduled job with exit=restart,
+	 * change it back to 'disable'.
+	 */
+	if ((job->job_exit_action & ST_EXIT_RESTART))
+		job->job_exit_action = (job->job_exit_action
+		    & ~ST_EXIT_RESTART) | ST_EXIT_DISABLE;
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_schedule: warning: job_update failed");
 
@@ -792,6 +802,7 @@ job_clear_maintenance(job)
 
 	return (0);
 }
+
 int
 job_set_schedule(job, sched)
 	job_t		*job;
@@ -920,6 +931,22 @@ char	 s[64];
 
 	job->job_schedule = cron;
 	job->job_flags |= (JOB_SCHEDULED | JOB_ENABLED);
+
+	/*
+	 * When scheduling a job with exit=disable, automatically change it to
+	 * exit=restart, since this is invariably the desired behaviour.
+	 */
+	if ((job->job_exit_action & ST_EXIT_DISABLE) &&
+	    cron.cron_type != CRON_ABSOLUTE)
+		job->job_exit_action = (job->job_exit_action
+		    & ~ST_EXIT_DISABLE) | ST_EXIT_RESTART;
+
+	/*
+	 * Remove 'mail' from the exit action.  A scheduled job exiting is
+	 * not normally an interesting event.
+	 */
+	job->job_exit_action &= ~ST_EXIT_MAIL;
+
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_schedule: warning: job_update failed");
 

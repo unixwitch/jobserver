@@ -25,6 +25,8 @@ typedef int32_t job_id_t;
 #define	JOB_ENABLED		0x2
 #define	JOB_SCHEDULED		0x4
 
+#define DEFAULT_LOGFMT		"%h/.job/%f.log"
+
 /*
  * Schedule information for scheduled jobs.
  */

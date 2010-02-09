@@ -9,6 +9,7 @@
 
 #include	<sys/types.h>
 #include	<sys/stropts.h>
+#include	<netinet/in.h>
 
 #include	<strings.h>
 #include	<stdio.h>
@@ -22,22 +23,18 @@
 #include	<ucred.h>
 #include	<curses.h>
 #include	<term.h>
+#include	<libnvpair.h>
+#include	<inttypes.h>
+#include	<errno.h>
 
-typedef struct {
-	int	 numeric;
-	char	*text;
-} reply_t;
+#define	DATA_TYPE_NVINLINE -1
 
-static reply_t *read_line();
-static void free_reply(reply_t *);
-static int put_server(char const *, ...);
-static int vput_server(char const *, va_list);
-static reply_t *simple_command(char const *, ...);
+static int put_server(nvlist_t *);
+static nvlist_t *read_nvlist();
+static nvlist_t *simple_command(char const *, ...);
+static void print_nvlist(FILE *, nvlist_t *);
 
-#define	NARG 16
-static int split(char *, char **);
-
-static FILE *server_in, *server_out;
+int server_fd;
 
 static int	c_list(int, char **);
 static int	c_enable(int, char **);
@@ -178,12 +175,6 @@ ucred_t		*ucred = NULL;
 		}
 	}
 
-	if (ioctl(fd, I_PUSH, "tirdwr") == -1) {
-		perror("job: ioctl(I_PUSH, tirdwr)");
-		t_close(fd);
-		return (-1);
-	}
-
 	if (getpeerucred(fd, &ucred) == -1) {
 		perror("job: getpeerucred");
 		return (-1);
@@ -202,10 +193,8 @@ main(argc, argv)
 	int argc;
 	char **argv;
 {
-int	 fd, c;
+int	 c;
 size_t	 i;
-reply_t	*rep;
-
 	if (setupterm(NULL, 1, NULL) == OK) {
 	char	*s;
 		if (s = tigetstr("bold"))
@@ -238,42 +227,18 @@ reply_t	*rep;
 		return (1);
 	}
 
-	if ((fd = server_connect()) == -1)
+	if ((server_fd = server_connect()) == -1)
 		return (1);
 
-	if ((server_in = fdopen(fd, "r")) == NULL) {
-		perror("job: fdopen");
-		return (1);
-	}
-
-	if ((server_out = fdopen(fd, "w")) == NULL) {
-		perror("job: fdopen");
-		return (1);
-	}
-
-	if ((rep = read_line()) == NULL)
-		return (1);
-
-	if (rep->numeric != 200) {
-		(void) fprintf(stderr, "%s\n", rep->text);
-		return (1);
-	}
-
-	(void) put_server("HELO 1");
-
-	if ((rep = read_line()) == NULL)
-		return (1);
-
-	if (rep->numeric != 200) {
-		(void) fprintf(stderr, "%s\n", rep->text);
-		return (1);
-	}
+	(void) simple_command("helo",
+		"version", DATA_TYPE_INT16, 1,
+		NULL);
 
 	for (i = 0; i < sizeof (cmds) / sizeof (*cmds); ++i) {
 		if (strcmp(argv[0], cmds[i].cmd) == 0) {
 		int	ret;
 			ret = cmds[i].func(argc, argv);
-			(void) simple_command("QUIT");
+			(void) simple_command("quit", NULL);
 			return (ret);
 		}
 	}
@@ -294,7 +259,10 @@ c_schedule(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("SCHD %s :%s", argv[1], argv[2]);
+	(void) simple_command("schedule",
+		"fmri", DATA_TYPE_STRING, argv[1],
+		"schedule", DATA_TYPE_STRING, argv[2],
+		NULL);
 	return (0);
 }
 
@@ -304,6 +272,7 @@ c_unschedule(argc, argv)
 	char	**argv;
 {
 int	c, stop = 0;
+	optind = 1;
 	while ((c = getopt(argc, argv, "s")) != -1) {
 		switch (c) {
 		case 's':
@@ -326,8 +295,12 @@ int	c, stop = 0;
 	}
 
 	if (stop)
-		(void) simple_command("STOP %s", argv[0]);
-	(void) simple_command("USHD %s", argv[0]);
+		(void) simple_command("stop",
+			"fmri", DATA_TYPE_STRING, argv[0],
+			NULL);
+	(void) simple_command("unschedule",
+	    "fmri", DATA_TYPE_STRING, argv[0],
+	    NULL);
 	return (0);
 }
 
@@ -337,14 +310,13 @@ c_list(argc, argv)
 	int	  argc;
 	char	**argv;
 {
-reply_t	*rep;
-char	*vec[NARG];
-int	 narg;
-int	 fmri_w = 0, state_w = 0, rstate_w = 0, i;
+nvlist_t *reply;
+nvlist_t **jobs;
+size_t i, njobs;
+int	 fmri_w = 0, state_w = 0, rstate_w = 0, w;
 struct {
 	char	*fmri, *state, *rstate, *name;
 } *ents = NULL;
-int nents = 0;
 
 	if (argc != 1) {
 		(void) fprintf(stderr, "list: wrong number of arguments\n\n");
@@ -352,83 +324,62 @@ int nents = 0;
 		return (1);
 	}
 
-	(void) put_server("LIST");
-
-	while ((rep = read_line()) != NULL) {
-		switch (rep->numeric) {
-		case 200:
-			break;
-
-		case 201:
-			narg = split(rep->text, vec);
-			if (narg < 3) {
-				(void) fprintf(stderr, "job: "
-				    "malformed line from server\n");
-				return (1);
-			}
-
-			if ((ents = realloc(ents, sizeof (*ents) *
-			    (nents + 1))) == NULL) {
-				(void) fprintf(stderr, "out of memory\n");
-				return (1);
-			}
-
-			ents[nents].fmri = vec[0];
-			ents[nents].state = vec[1];
-			ents[nents].rstate = vec[2];
-
-			if ((i = strlen(vec[0])) > fmri_w) fmri_w = i + 2;
-			if ((i = strlen(vec[1])) > state_w) state_w = i + 2;
-			if ((i = strlen(vec[2])) > rstate_w) rstate_w = i + 2;
-
-			nents++;
-			break;
-
-		case 202:
-			if (nents == 0) {
-				(void) printf("No jobs found.\n");
-				return (0);
-			}
-
-			(void) printf("%s%-*s %-*s FMRI%s\n",
-				bold,
-				state_w, "STATE",
-				rstate_w, "RSTATE",
-				reset);
-
-			for (i = 0; i < nents; ++i) {
-			char const	*scol, *rcol;
-
-				if (strcmp(ents[i].state, "enabled") == 0)
-					scol = green;
-				else if (strcmp(ents[i].state,
-				    "scheduled/enabled") == 0)
-					scol = blue;
-				else
-					scol = "";
-
-				if (strcmp(ents[i].rstate, "maintenance") == 0)
-					rcol = red;
-				else if (strcmp(ents[i].rstate, "running") == 0)
-					rcol = green;
-				else
-					rcol = "";
-
-				(void) printf("%s%-*s%s %s%-*s%s %s\n",
-					scol, state_w, ents[i].state, reset,
-					rcol, rstate_w, ents[i].rstate, reset,
-					ents[i].fmri);
-			}
-			return (0);
-
-		default:
-			(void) fprintf(stderr, "%s\n", rep->text);
-			return (1);
-		}
+	reply = simple_command("list", NULL);
+	if (nvlist_lookup_nvlist_array(reply, "jobs", &jobs, &njobs)) {
+		(void) fprintf(stderr, "list: unexpected reply from server\n");
+		return (1);
 	}
 
-	(void) fprintf(stderr, "job: unexpected EOF\n");
-	return (1);
+	if (njobs == 0) {
+		(void) printf("No jobs found.\n");
+		return (0);
+	}
+
+	if ((ents = malloc(sizeof(*ents) * njobs)) == NULL) {
+		(void) fprintf(stderr, "out of memory");
+		return (1);
+	}
+
+	for (i = 0; i < njobs; ++i) {
+		nvlist_lookup_string(jobs[i], "fmri", &ents[i].fmri);
+		nvlist_lookup_string(jobs[i], "state", &ents[i].state);
+		nvlist_lookup_string(jobs[i], "rstate", &ents[i].rstate);
+
+		if ((w = strlen(ents[i].fmri)) > fmri_w) fmri_w = w + 2;
+		if ((w = strlen(ents[i].state)) > state_w) state_w = w + 2;
+		if ((w = strlen(ents[i].rstate)) > rstate_w) rstate_w = w + 2;
+	}
+
+	(void) printf("%s%-*s %-*s FMRI%s\n",
+		bold,
+		state_w, "STATE",
+		rstate_w, "RSTATE",
+		reset);
+
+	for (i = 0; i < njobs; ++i) {
+	char const	*scol, *rcol;
+
+		if (strcmp(ents[i].state, "enabled") == 0)
+			scol = green;
+		else if (strcmp(ents[i].state,
+		    "scheduled/enabled") == 0)
+			scol = blue;
+		else
+			scol = "";
+
+		if (strcmp(ents[i].rstate, "maintenance") == 0)
+			rcol = red;
+		else if (strcmp(ents[i].rstate, "running") == 0)
+			rcol = green;
+		else
+			rcol = "";
+
+		(void) printf("%s%-*s%s %s%-*s%s %s\n",
+			scol, state_w, ents[i].state, reset,
+			rcol, rstate_w, ents[i].rstate, reset,
+			ents[i].fmri);
+	}
+	return (0);
 }
 
 int
@@ -442,7 +393,9 @@ c_enable(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("CHNG %s enabled=1", argv[1]);
+	(void) simple_command("enable",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 	return (0);
 }
 
@@ -457,7 +410,9 @@ c_stop(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("STOP %s", argv[1]);
+	(void) simple_command("stop",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 	return (0);
 }
 
@@ -472,7 +427,9 @@ c_start(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("STRT %s", argv[1]);
+	(void) simple_command("start",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 	return (0);
 }
 
@@ -481,6 +438,8 @@ c_quota(argc, argv)
 	int argc;
 	char **argv;
 {
+nvlist_t *cmd;
+nvlist_t *reply;
 	if (argc < 2 || argc > 3) {
 		(void) fprintf(stderr, "quota: wrong number of arguments\n\n");
 		(void) fprintf(stderr, "%s", u_quota);
@@ -488,11 +447,30 @@ c_quota(argc, argv)
 	}
 
 	if (argc == 2) {
-	reply_t	*rep;
-		rep = simple_command("GCNF %s", argv[1]);
-		(void) printf("%s = %s\n", argv[1], rep->text);
-	} else
-		(void) simple_command("CONF %s %s", argv[1], argv[2]);
+	uint32_t	value;
+		nvlist_alloc(&cmd, NV_UNIQUE_NAME, 0);
+		nvlist_add_boolean(cmd, argv[1]);
+		reply = simple_command("get_config",
+		    "opts", DATA_TYPE_NVLIST, cmd,
+		    NULL);
+		if (nvlist_lookup_uint32(reply, argv[1], &value)) {
+			(void) fprintf(stderr, "unexpected reply from server\n");
+			return (1);
+		}
+		(void) printf("%s = %"PRIu32"\n", argv[1], value);
+	} else {
+		nvlist_alloc(&cmd, NV_UNIQUE_NAME, 0);
+		if (strcmp(argv[1], "jobs-per-user") == 0)
+			nvlist_add_int32(cmd, "jobs_per_user", atoi(argv[2]));
+		else {
+			(void) fprintf(stderr, "Invalid option.\n");
+			return (1);
+		}
+
+		simple_command("set_config",
+		    "opts", DATA_TYPE_NVLIST, cmd,
+		    NULL);
+	}
 
 	return (0);
 }
@@ -508,7 +486,9 @@ c_disable(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("CHNG %s enabled=0", argv[1]);
+	(void) simple_command("disable",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 	return (0);
 }
 
@@ -523,7 +503,9 @@ c_delete(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("DELE %s", argv[1]);
+	(void) simple_command("delete",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 	return (0);
 }
 
@@ -538,7 +520,9 @@ c_clear(argc, argv)
 		return (1);
 	}
 
-	(void) simple_command("CLEA %s", argv[1]);
+	(void) simple_command("clear",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 	return (0);
 }
 
@@ -547,9 +531,14 @@ c_show(argc, argv)
 	int argc;
 	char **argv;
 {
-reply_t	*rep;
-int	 first = 1;
-char	*vec[NARG];
+nvlist_t	*reply, *job, *rctls;
+char		*fmri, *state, *rstate, *start, *stop,
+		*schedule = NULL, *nextrun = NULL, *project, *logfmt,
+		*exit, *fail, *crash;
+nvpair_t	*pair = NULL;
+uint32_t	 logkeep;
+uint64_t	 logsize;
+int		 first = 1;
 
 	if (argc != 2) {
 		(void) fprintf(stderr, "show: wrong number of arguments\n\n");
@@ -557,114 +546,78 @@ char	*vec[NARG];
 		return (1);
 	}
 
-	(void) put_server("STAT %s", argv[1]);
-	while ((rep = read_line()) != NULL) {
-		if (*rep->text == ':')
-			rep->text++;
+	reply = simple_command("stat",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 
-		if (rep->numeric >= 500) {
-			(void) fprintf(stderr, "%s\n", rep->text);
-			return (1);
-		}
-
-		switch (rep->numeric) {
-		case 201: (void) printf("%s%s%s:\n", bold, rep->text, reset);
-			break;
-		case 204: (void) printf("       state: %s\n", rep->text); break;
-		case 205: (void) printf("      rstate: %s\n", rep->text); break;
-		case 206: (void) printf("start method: %s\n", rep->text); break;
-		case 207: (void) printf(" stop method: %s\n", rep->text); break;
-		case 208: (void) printf("    schedule: %s\n", rep->text); break;
-		case 213: (void) printf("              (in %s)\n", rep->text);
-			break;
-		case 209: (void) printf("     project: %s\n", rep->text); break;
-		case 214: (void) printf("  log format: %s\n", rep->text); break;
-		case 210: (void) printf("     on exit: %s\n", rep->text); break;
-		case 211: (void) printf("     on fail: %s\n", rep->text); break;
-		case 212: (void) printf("    on crash: %s\n", rep->text); break;
-		case 215: {
-		char	*p;
-			if ((p = index(rep->text, ' ')) == NULL) {
-				(void) fprintf(stderr,
-				    "Malformed line from server.\r\n");
-				return (1);
-			}
-			*p++ = 0;
-			(void) printf("log rotation: size %d, keep %d\n",
-			    atoi(rep->text), atoi(p)); break;
-			break;
-		}
-		}
-
-		if (rep->numeric == 299) {
-			free_reply(rep);
-			break;
-		}
-
-		free_reply(rep);
-
+	if (nvlist_lookup_nvlist(reply, "job", &job)) {
+		(void) fprintf(stderr, "show: invalid reply from server\n");
+		return (1);
 	}
 
-	(void) printf("      limits:");
-	(void) put_server("LISR %s FMT", argv[1]);
-	while (rep = read_line()) {
-		switch (rep->numeric) {
-		case 200:
-			(void) split(rep->text, vec);
-			if (first)
-				(void) printf(" %s = %s\n", vec[0], vec[1]);
-			else
-				(void) printf("              "
-				    "%s = %s\n", vec[0], vec[1]);
-			first = 0;
-			break;
-
-		case 201:
-			if (first)
-				(void) printf(" -\n");
-			return (0);
-
-		default:
-			(void) printf("%s\n", rep->text);
-			return (1);
-		}
+	if (nvlist_lookup_pairs(job, 0,
+	    "fmri", DATA_TYPE_STRING, &fmri,
+	    "state", DATA_TYPE_STRING, &state,
+	    "rstate", DATA_TYPE_STRING, &rstate,
+	    "start", DATA_TYPE_STRING, &start,
+	    "stop", DATA_TYPE_STRING, &stop,
+	    "project", DATA_TYPE_STRING, &project,
+	    "logfmt", DATA_TYPE_STRING, &logfmt,
+	    "exit", DATA_TYPE_STRING, &exit,
+	    "fail", DATA_TYPE_STRING, &fail,
+	    "crash", DATA_TYPE_STRING, &crash,
+	    "logsize", DATA_TYPE_UINT64, &logsize,
+	    "logkeep", DATA_TYPE_UINT32, &logkeep,
+	    NULL)) {
+		(void) fprintf(stderr, "show: invalid reply from server\n");
+		return (1);
 	}
 
-	(void) fprintf(stderr, "job: unexpected EOF\n");
-	return (1);
-}
+	(void) printf("%s%s%s:\n", bold, fmri, reset);
+	(void) printf("       state: %s\n", state);
+	(void) printf("      rstate: %s\n", rstate);
+	(void) printf("start method: %s\n", start);
+	(void) printf(" stop method: %s\n", stop);
+	if (nvlist_lookup_string(job, "schedule", &schedule) == 0)
+		(void) printf("    schedule: %s\n", schedule);
+	if (nvlist_lookup_string(job, "nextrun", &nextrun) == 0)
+		(void) printf("              (in %s)\n", nextrun);
+	(void) printf("     project: %s\n", project);
+	(void) printf("  log format: %s\n", logfmt);
+	(void) printf("log rotation: size %"PRIu64", keep %"PRIu32"\n",
+	    logsize, logkeep);
+	(void) printf("     on exit: %s\n", exit);
+	(void) printf("     on fail: %s\n", fail);
+	(void) printf("    on crash: %s\n", crash);
 
-static int
-do_unset_property(fmri, prop)
-	char const	*fmri, *prop;
-{
-reply_t	*rep;
+	(void) printf("      limits: ");
+	reply = simple_command("list_rctls",
+	    "fmri", DATA_TYPE_STRING, argv[1],
+	    NULL);
 
-	rep = simple_command("USET %s %s", fmri, prop);
-	if (rep->numeric != 200) {
-		(void) fprintf(stderr, "%s\n", rep->text);
-		exit(1);
+	if (nvlist_lookup_nvlist(reply, "rctls", &rctls)) {
+		(void) fprintf(stderr, "show: invalid reply from server\n");
+		return (1);
 	}
 
-	free_reply(rep);
-	return (0);
-}
-
-static int
-do_set_property(fmri, prop, value)
-	char const	*fmri;
-	char const	*prop;
-	char const	*value;
-{
-reply_t	*rep;
-
-	rep = simple_command("CHNG %s :%s=%s", fmri, prop, value);
-	if (rep->numeric != 200) {
-		(void) fprintf(stderr, "%s\n", rep->text);
-		exit(1);
+	while ((pair = nvlist_next_nvpair(rctls, pair)) != NULL) {
+	char	*value;
+		nvpair_value_string(pair, &value);
+		if (first)
+			(void) printf("%s = %s\n",
+			  nvpair_name(pair),
+			  value);
+		else
+			(void) printf("              "
+			    "%s = %s\n",
+			    nvpair_name(pair),
+			    value);
+		first = 0;
 	}
 
-	free_reply(rep);
+	if (first)
+		printf("-\n");
+
 	return (0);
 }
 
@@ -673,8 +626,9 @@ c_unset(argc, argv)
 	int argc;
 	char **argv;
 {
-char	*fmri;
-
+char		*fmri;
+nvlist_t	*request, *reply;
+nvpair_t	*pair = NULL;
 	if (argc < 2) {
 		(void) fprintf(stderr, "unset: not enough arguments\n");
 		(void) fprintf(stderr, "%s", u_set);
@@ -685,19 +639,89 @@ char	*fmri;
 	argv += 2;
 	argc -= 2;
 
-	while (argc) {
-		if (do_unset_property(fmri, argv[0]) == -1) {
-			(void) fprintf(stderr, "set: "
-			    "unknown property \"%s\"\n", argv[0]);
-			(void) fprintf(stderr, "%s", u_set);
-			return (1);
-		}
+	nvlist_alloc(&request, NV_UNIQUE_NAME, 0);
+	while (argc)
+		nvlist_add_boolean_value(request, argv[argc-- - 1], 0);
 
-		argc--;
-		argv++;
+	reply = simple_command("set_property",
+	    "fmri", DATA_TYPE_STRING, fmri,
+	    "opts", DATA_TYPE_NVLIST, request,
+	    NULL);
+	nvlist_free(request);
+
+	while ((pair = nvlist_next_nvpair(reply, pair)) != NULL) {
+	char	*err;
+		nvpair_value_string(pair, &err);
+		(void) fprintf(stderr, "%s: %s\n",
+		     nvpair_name(pair), err);
 	}
 
 	return (0);
+}
+
+static int
+do_set_property(fmri, prop, val)
+	char const	*fmri, *prop, *val;
+{
+	/*
+	 * The jobserver requireds that properties be set with the correct
+	 * type.  We list non-string properties here, and assume anything
+	 * not listed is a string.  Lists must be in alphabetical order.
+	 */
+static char const ui64[][20] = {
+	"logsize",
+	"max-address-space",
+	"max-core-size",
+	"max-cpu-time",
+	"max-data-size",
+	"max-file-descriptor",
+	"max-file-size",
+	"max-lwps",
+	"max-msg-messages",
+	"max-msg-qbytes",
+	"max-port-events",
+	"max-sem-ops",
+	"max-sem-nsems",
+	"max-stack-size",
+};
+static char const *const ui16[][20] = {
+	"logkeep",
+};
+nvlist_t	*reply;
+nvpair_t	*pair = NULL;
+int		 ret = 0;
+	if (bsearch(prop, ui64, sizeof(ui64) / sizeof(*ui64), 20, (int (*)(void const *, void const *)) strcmp)) {
+		reply = simple_command("set_property",
+		    "fmri", DATA_TYPE_STRING, fmri,
+		    "opts", DATA_TYPE_NVINLINE,
+		    	prop, DATA_TYPE_UINT64, strtoll(val, NULL, 0),
+			NULL,
+		    NULL);
+	} else if (bsearch(prop, ui16, sizeof(ui16) / sizeof(*ui16), 20, (int (*)(void const *, void const *)) strcmp)) {
+		reply = simple_command("set_property",
+		    "fmri", DATA_TYPE_STRING, fmri,
+		    "opts", DATA_TYPE_NVINLINE,
+		    	prop, DATA_TYPE_UINT16, atoi(val),
+			NULL,
+		    NULL);
+	} else {
+		reply = simple_command("set_property",
+		    "fmri", DATA_TYPE_STRING, fmri,
+		    "opts", DATA_TYPE_NVINLINE,
+			prop, DATA_TYPE_STRING, val,
+			NULL,
+		    NULL);
+	}
+
+	while ((pair = nvlist_next_nvpair(reply, pair)) != NULL) {
+	char	*err;
+		nvpair_value_string(pair, &err);
+		(void) fprintf(stderr, "%s: %s\n",
+		     nvpair_name(pair), err);
+		ret = -1;
+	}
+
+	return (ret);
 }
 
 int
@@ -705,7 +729,10 @@ c_set(argc, argv)
 	int argc;
 	char **argv;
 {
-char	*fmri;
+char		*fmri;
+nvlist_t	*request, *reply;
+nvpair_t	*pair = NULL;
+int		 ret = 0;
 
 	if (argc < 3) {
 		(void) fprintf(stderr, "set: not enough arguments\n");
@@ -717,6 +744,7 @@ char	*fmri;
 	argv += 2;
 	argc -= 2;
 
+	nvlist_alloc(&request, NV_UNIQUE_NAME, 0);
 	while (argc) {
 	char	*k = argv[0], *v;
 		if ((v = strchr(k, '=')) == NULL) {
@@ -728,13 +756,8 @@ char	*fmri;
 
 		*v++ = 0;
 
-		if (do_set_property(fmri, k, v) == -1) {
-			(void) fprintf(stderr, "set: "
-			    "unknown property \"%s\"\n", k);
-			(void) fprintf(stderr, "%s", u_set);
-			return (1);
-		}
-
+		if (do_set_property(fmri, k, v) == -1)
+			ret = 1;
 		argc--;
 		argv++;
 	}
@@ -747,11 +770,11 @@ c_add(argc, argv)
 	int	  argc;
 	char	**argv;
 {
-reply_t	*rep;
+nvlist_t *reply, *props;
+char	*id;
 int	 c, do_enable = 0;
 char	*schedule = NULL;
 char	*name = NULL;
-char	*id;
 size_t	 i;
 struct {
 	char *prop;
@@ -831,195 +854,250 @@ int nopts = 0;
 				*p = '_';
 	}
 
-	rep = simple_command("CRTE :%s", name);
-	(void) printf("New job FMRI is %s.\n", rep->text);
-	if ((id = strdup(rep->text)) == NULL) {
-		(void) fprintf(stderr, "out of memory\n");
+	reply = simple_command("create",
+	    "name", DATA_TYPE_STRING, name,
+	    NULL);
+	if (nvlist_lookup_string(reply, "fmri", &id)) {
+		(void) fprintf(stderr, "invalid reply from server\n");
 		return (1);
 	}
 
-	(void) simple_command("CHNG %s :start=%s", id, argv[0]);
+	(void) printf("New job FMRI is %s.\n", id);
 
+	do_set_property(id, "start", argv[0]);
+
+	nvlist_alloc(&props, NV_UNIQUE_NAME, 0);
 	for (i = 0; i < nopts; ++i) {
-		if (do_set_property(id, opts[i].prop, opts[i].value) == -1) {
-			(void) fprintf(stderr, "unrecognised property \"%s\"\n",
-					opts[i].prop);
-			(void) fprintf(stderr, "%s", u_add);
-			return (1);
-		}
+		do_set_property(id, opts[i].prop, opts[i].value);
+		if (strcmp(opts[i].prop, "logkeep") == 0)
+			nvlist_add_uint32(props, opts[i].prop, atoi(opts[i].value));
+		else if (strcmp(opts[i].prop, "logsize") == 0)
+			nvlist_add_uint64(props, opts[i].prop, strtoull(opts[i].value, NULL, 0));
+		else
+			nvlist_add_string(props, opts[i].prop, opts[i].value);
 	}
 
 	if (do_enable)
-		(void) simple_command("CHNG %s enabled=1", id);
+		(void) simple_command("enable",
+		    "fmri", DATA_TYPE_STRING, id,
+		    NULL);
 	else if (schedule)
-		(void) simple_command("SCHD %s :%s", id, schedule);
+		(void) simple_command("schedule",
+		    "fmri", DATA_TYPE_STRING, id,
+		    "schedule", DATA_TYPE_STRING, schedule,
+		    NULL);
 
 	return (0);
 }
 
-static reply_t *
-read_line()
+static nvlist_t *
+read_nvlist()
 {
-int	 cont = 0, prev = 0;
-reply_t	*rep;
-char	 line[1024];
-
-	if ((rep = calloc(1, sizeof (reply_t))) == NULL) {
-		(void) fprintf(stderr, "job: out of memory");
+nvlist_t	*nvl;
+uint32_t	 sz = 0;
+char		*buf;
+int		 flags = 0;
+int		 i;
+	if ((i = t_rcv(server_fd, &sz, sizeof(sz), &flags)) < sizeof(sz)) {
+		if (i == 0)
+			(void) fprintf(stderr, "unexpected EOF from server\n");
+		else if (i == -1)
+			(void) fprintf(stderr, "server read error: %s\n", strerror(errno));
+		else
+			(void) fprintf(stderr, "short read from server\n");
+		exit(1);
+	}
+	sz = ntohl(sz);
+	if ((buf = malloc(sz)) == NULL) {
+		(void) fprintf(stderr, "out of memory\n");
+		exit(1);
+	}
+	if ((i = t_rcv(server_fd, buf, sz, &flags)) < sz) {
+		if (i == 0)
+			(void) fprintf(stderr, "unexpected EOF from server\n");
+		else if (i == -1)
+			(void) fprintf(stderr, "server read error: %s\n", strerror(errno));
+		else
+			(void) fprintf(stderr, "short read from server (%d < %d)\n",
+					(int) i, (int) sz);
 		exit(1);
 	}
 
-	while (fgets(line, sizeof (line), server_in) != NULL) {
-	char	*p;
-	int	 ocont = cont;
-		cont = 0;
-
-		line[strlen(line) - 2] = 0;
-
-		if (debug)
-			(void) fprintf(stderr, "<<  %s\n", line);
-
-
-		if (strlen(line) < 5) {
-			(void) fprintf(stderr, "job: "
-			    "malformed line from server\n");
-			exit(1);
-		}
-
-		if (isdigit(line[0]) && isdigit(line[1]) && isdigit(line[2])) {
-			rep->numeric = atoi(line);
-			p = &line[3];
-
-			if (*p == '-')
-				cont = 1, p++;
-
-			while (*p == ' ')
-				p++;
-		} else {
-			(void) fprintf(stderr, "job: "
-			    "malformed line from server\n");
-			exit(1);
-		}
-
-		if (ocont) {
-			if (rep->numeric != prev) {
-				(void) fprintf(stderr, "job: "
-				    "malformed line from server\n");
-				exit(1);
-			}
-
-			if ((rep->text = realloc(rep->text,
-			    strlen(rep->text) + 1 + strlen(p) + 1)) == NULL) {
-				(void) fprintf(stderr, "job: out of memory\n");
-				exit(1);
-			}
-
-			(void) strcat(rep->text, p);
-		} else {
-			if ((rep->text = strdup(p)) == NULL) {
-				(void) fprintf(stderr, "out of memory\n");
-				exit(1);
-			}
-		}
-
-		prev = rep->numeric;
-		if (!cont)
-			return (rep);
+	if (nvlist_unpack(buf, sz, &nvl, 0)) {
+		(void) fprintf(stderr, "cannot unpack server data: %s\n",
+				strerror(errno));
+		exit(1);
 	}
 
-	perror("job: network read");
-	exit(1);
-	/*NOTREACHED*/
-}
-
-static int
-vput_server(fmt, ap)
-	char const	*fmt;
-	va_list		 ap;
-{
-int	i;
 	if (debug) {
-	va_list	ap2;
-		va_copy(ap2, ap);
-		(void) fputs(" >> ", stderr);
-		(void) vfprintf(stderr, fmt, ap2);
-		(void) fputs("\n", stderr);
+		(void) fprintf(stderr, "<< ");
+		print_nvlist(stderr, nvl);
+		(void) fprintf(stderr, "\n");
 	}
 
-	i = vfprintf(server_out, fmt, ap);
-	if (i != -1)
-		i = fputs("\r\n", server_out);
-	if (i != -1)
-		i = fflush(server_out);
-	return (i);
-}
-
-static int
-put_server(char const *fmt, ...)
-{
-va_list	ap;
-int	i;
-	va_start(ap, fmt);
-	i = vput_server(fmt, ap);
-	va_end(ap);
-	return (i);
-}
-
-static int
-split(line, vec)
-	char	*line;
-	char	**vec;
-{
-char	*p;
-int	 i = 0;
-	while ((p = strchr(line, ' ')) != NULL) {
-		while (*line == ' ')
-			++line;
-
-		vec[i++] = line;
-		*p++ = 0;
-		line = p;
-
-		while (*line == ' ')
-			++line;
-
-		if (i+2 == NARG)
-			return (i);
-
-		if (*line == ':')
-			break;
-	}
-
-	if (*line == ':')
-		line++;
-
-	vec[i++] = line;
-	return (i);
-}
-
-static reply_t *
-simple_command(char const *fmt, ...)
-{
-va_list	 ap;
-reply_t	*rep;
-
-	va_start(ap, fmt);
-	(void) vput_server(fmt, ap);
-	va_end(ap);
-
-	rep = read_line();
-	if (rep->numeric != 200) {
-		(void) fprintf(stderr, "%s\n", rep->text);
-		exit(1);
-	}
-
-	return (rep);
+	return nvl;
 }
 
 static void
-free_reply(rep)
-	reply_t	*rep;
+print_nvlist(fl, nvl)
+	FILE		*fl;
+	nvlist_t	*nvl;
 {
-	free(rep->text);
-	free(rep);
+nvpair_t	*pair = NULL;
+char		*strval;
+uint16_t	 ui16val;
+int16_t		 i16val;
+uint32_t	 ui32val;
+uint64_t	 ui64val;
+nvlist_t	*nvarg;
+nvlist_t	**nvlarg;
+uint_t		 num, i;
+boolean_t	 boolval;
+	(void) fprintf(fl, "{ ");
+	while ((pair = nvlist_next_nvpair(nvl, pair)) != NULL) {
+		(void) fprintf(fl, "%s=", nvpair_name(pair));
+		switch (nvpair_type(pair)) {
+		case DATA_TYPE_STRING:
+			nvpair_value_string(pair, &strval);
+			(void) fprintf(fl, "\"%s\" ", strval);
+			break;
+		case DATA_TYPE_INT16:
+			nvpair_value_int16(pair, &i16val);
+			(void) fprintf(fl, "%"PRIi16" ", i16val);
+			break;
+		case DATA_TYPE_UINT16:
+			nvpair_value_uint16(pair, &ui16val);
+			(void) fprintf(fl, "%"PRIu16" ", ui16val);
+			break;
+		case DATA_TYPE_UINT32:
+			nvpair_value_uint32(pair, &ui32val);
+			(void) fprintf(fl, "%"PRIu32" ", ui32val);
+			break;
+		case DATA_TYPE_UINT64:
+			nvpair_value_uint64(pair, &ui64val);
+			(void) fprintf(fl, "%"PRIu64" ", ui64val);
+			break;
+		case DATA_TYPE_NVLIST:
+			nvpair_value_nvlist(pair, &nvarg);
+			print_nvlist(fl, nvarg);
+			break;
+		case DATA_TYPE_BOOLEAN_VALUE:
+			nvpair_value_boolean_value(pair, &boolval);
+			(void) fprintf(fl, "%s ",
+			    boolval ? "true" : "false");
+			break;
+		case DATA_TYPE_NVLIST_ARRAY: {
+			nvpair_value_nvlist_array(pair, &nvlarg, &num);
+			(void) fprintf(fl, "[ ");
+			for (i = 0; i < num; ++i) {
+				print_nvlist(fl, nvlarg[i]);
+				if ((i + 1) != num)
+					(void) fprintf(fl, ",");
+				(void) fprintf(fl, " ");
+			}
+			(void) fprintf(fl, "] ");
+			break;
+		}
+
+		default:
+			(void) fprintf(fl, "<unknown type> ");
+			break;
+		}
+	}
+	(void) fprintf(fl, "}");
+}
+
+static int
+put_server(nvl)
+	nvlist_t	*nvl;
+{
+size_t		len;
+char		*buf = NULL;
+uint32_t	sz;
+int		ret;
+	if (debug) {
+		(void) fprintf(stderr, " >> ");
+		print_nvlist(stderr, nvl);
+		(void) fprintf(stderr, "\n");
+	};
+
+	if (nvlist_pack(nvl, &buf, &len, NV_ENCODE_XDR, 0))
+		return -1;
+	sz = htonl(len);
+	ret = t_snd(server_fd, &sz, sizeof(sz), 0);
+	if (ret != -1) 
+		ret = t_snd(server_fd, buf, len, 0);
+	free(buf);
+	return (ret);
+}
+
+static void
+vadd_nvargs(nvlist_t *nvl, va_list *ap)
+{
+char const	*name;
+	while ((name = va_arg(*ap, char const *)) != NULL) {
+		switch (va_arg(*ap, data_type_t)) {
+		case DATA_TYPE_STRING:
+			nvlist_add_string(nvl, name, va_arg(*ap, char const *));
+			break;
+		case DATA_TYPE_INT16:
+			nvlist_add_int16(nvl, name, va_arg(*ap, int16_t));
+			break;
+		case DATA_TYPE_UINT16:
+			nvlist_add_uint16(nvl, name, va_arg(*ap, uint16_t));
+			break;
+		case DATA_TYPE_UINT32:
+			nvlist_add_uint32(nvl, name, va_arg(*ap, uint32_t));
+			break;
+		case DATA_TYPE_UINT64:
+			nvlist_add_uint64(nvl, name, va_arg(*ap, uint64_t));
+			break;
+		case DATA_TYPE_NVLIST:
+			nvlist_add_nvlist(nvl, name, va_arg(*ap, nvlist_t *));
+			break;
+		case DATA_TYPE_NVINLINE: {
+		nvlist_t	*nv;
+			nvlist_alloc(&nv, NV_UNIQUE_NAME, 0);
+			vadd_nvargs(nv, ap);
+			nvlist_add_nvlist(nvl, name, nv);
+			break;
+		}
+		default:
+			(void) fprintf(stderr, "simple_command: unknown data type\n");
+			abort();
+		}
+	}
+}
+
+static nvlist_t *
+simple_command(char const *cmd, ...)
+{
+nvlist_t	*nvl;
+va_list		 ap;
+char		*err;
+	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0)) {
+		(void) fprintf(stderr, "nvlist_alloc: %s\n",
+				strerror(errno));
+		exit(1);
+	}
+
+	nvlist_add_string(nvl, "command", cmd);
+	va_start(ap, cmd);
+	vadd_nvargs(nvl, &ap);
+	va_end(ap);
+
+	if (put_server(nvl) < 0) {
+		(void) fprintf(stderr, "write to server: %s",
+				strerror(errno));
+		exit(1);
+	}
+
+	nvlist_free(nvl);
+	nvl = read_nvlist();
+	if (nvlist_lookup_string(nvl, "error", &err) == 0) {
+		(void) fprintf(stderr, "%s\n", err);
+		exit(1);
+	}
+
+	return nvl;
 }

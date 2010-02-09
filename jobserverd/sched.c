@@ -222,6 +222,8 @@ sjob_t	*sjob = udata;
 	if (sigsend(P_CTID, sjob->sjob_contract->ct_id, SIGKILL) == -1)
 		logm(LOG_ERR, "sched_stop: could not signal processes: %s",
 				strerror(errno));
+
+	sjob->sjob_timer = -1;
 }
 
 int
@@ -324,11 +326,13 @@ free_sjob(sjob)
 		return;
 
 	if (sjob->sjob_contract && sjob->sjob_contract->ct_events != -1)
-		close_fd(sjob->sjob_contract->ct_events);
+		unregister_fd(sjob->sjob_contract->ct_events, FDE_BOTH);
 	if (sjob->sjob_contract && sjob->sjob_stop_contract->ct_events != -1)
-		close_fd(sjob->sjob_stop_contract->ct_events);
+		unregister_fd(sjob->sjob_stop_contract->ct_events, FDE_BOTH);
 	contract_close(sjob->sjob_contract);
 	contract_close(sjob->sjob_stop_contract);
+	if (sjob->sjob_timer != -1)
+		ev_cancel(sjob->sjob_timer);
 
 	LIST_REMOVE(sjob, sjob_entries);
 }

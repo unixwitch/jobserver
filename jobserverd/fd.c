@@ -15,6 +15,7 @@
 #include	<stdarg.h>
 #include	<xti.h>
 #include	<strings.h>
+#include	<netinet/in.h>
 
 #include	"fd.h"
 #include	"jobserver.h"
@@ -37,6 +38,8 @@ typedef struct fde {
 	fde_callback	 fde_read_callback;
 	fde_callback	 fde_write_callback;
 	fde_rl_callback	 fde_rl_callback;
+	fde_nvl_callback fde_nvl_callback;
+	uint32_t	 fde_nvlength;
 	buffer_t	 fde_wbuf;
 	buffer_t	 fde_rbuf;
 	void		*fde_udata;
@@ -55,12 +58,6 @@ fd_init(prt)
 		return (0);
 
 	port = prt;
-
-#if 0
-	nfds = getdtablesize();
-	if ((fd_table = calloc(sizeof (*fd_table), nfds)) == NULL)
-		return (-1);
-#endif
 
 	return (0);
 }
@@ -254,7 +251,7 @@ char	 rbuf[1024];
 int	 flags = 0;
 
 	assert(fd < nfds);
-	assert(type == FDE_READ || type == FDE_WRITE);
+	assert(type == FDE_READ);
 
 	e = &fd_table[fd];
 	bytesleft = min(FD_BUF_SIZE - e->fde_rbuf.b_size, 1024);
@@ -371,11 +368,121 @@ fd_readline(fd, callback, udata)
 	fde_rl_callback	 callback;
 	void		*udata;
 {
-	assert(fd > 0);
+	assert(fd >= 0);
 	assert(callback);
 
 	fd_table[fd].fde_rl_callback = callback;
 	return (register_fd(fd, FDE_READ, fd_readline_callback, udata));
+}
+
+/*
+ * Callback for nvlist read.  The protocol is a 4-byte length in
+ * network order, followed by the nvlist.
+ */
+static void
+fd_nvl_callback(fd, type, udata)
+	int		 fd;
+	fde_evt_type_t	 type;
+	void		*udata;
+{
+fde_t	*e;
+char	 rbuf[1024];
+size_t	 bytesleft; /* space left in fde_rbuf */
+int	 i, flags;
+int	 save_errno, save_terrno;
+	assert(fd < nfds);
+	assert(type == FDE_READ);
+
+	e = &fd_table[fd];
+	bytesleft = min(FD_BUF_SIZE - e->fde_rbuf.b_size, 1024);
+
+	/*
+	 * Fill the buffer with data.  We only read up to FD_BUF_SIZE; if more
+	 * data is still available, it'll be caught the next time round.  This
+	 * gives other fds a chance to be processed even if one fd is sending
+	 * an excessive amount of data.
+	 */
+	while ((i = t_rcv(fd, rbuf, bytesleft, &flags)) > 0) {
+		if (buf_append(&e->fde_rbuf, rbuf, i) == -1) {
+			logm(LOG_ERR, "fd=%d "
+			    "fd_readline_callback: buf_append failed",
+			    e->fde_fd);
+			return;
+		}
+
+		if (e->fde_rbuf.b_size >= FD_BUF_SIZE)
+			break;
+
+		bytesleft -= i;
+	}
+
+	save_terrno = t_errno;
+	save_errno = errno;
+
+	for (;;) {
+	nvlist_t	*nvl;
+		if (e->fde_nvlength == 0) {
+			/* Didn't read the length yet, see if it's in the buffer */
+			if (e->fde_rbuf.b_size < 4)
+				break;
+			/*LINTED pointer cast may result in improper alignment*/
+			e->fde_nvlength = ntohl(*(uint32_t *)e->fde_rbuf.b_data);
+			(void) buf_erase(&e->fde_rbuf, 0, 4);
+		}
+
+		/* See if we read the entire nvlist */
+		if (e->fde_rbuf.b_size < e->fde_nvlength)
+			break;
+
+		if (nvlist_unpack(e->fde_rbuf.b_data, e->fde_nvlength,
+		    &nvl, 0)) {
+				logm(LOG_WARNING, "fd_nvl_callback: "
+				    "nvlist_unpack failed: %s",
+				    strerror(errno));
+				save_errno = EINVAL;
+				i = -1;
+		} else {
+			e->fde_nvl_callback(fd, nvl, udata);
+			e = &fd_table[fd];
+			nvlist_free(nvl);
+		}
+		buf_erase(&e->fde_rbuf, 0, e->fde_nvlength);
+		e->fde_nvlength = 0;
+	}
+
+	errno = save_errno;
+	t_errno = save_terrno;
+	
+	if (i == -1) {
+		if (t_errno == TNODATA ||
+		    (t_errno == TSYSERR && errno == EINTR))
+			return;
+		if (e->fde_nvl_callback)
+			e->fde_nvl_callback(e->fde_fd, NULL,
+			    e->fde_udata);
+	} else if (i == 0) {
+		/* EOF */
+		if (unregister_fd(fd, FDE_READ) == -1)
+			logm(LOG_WARNING, "fd_nvl_callback: "
+			    "unregister_fd failed: %s",
+			    strerror(errno));
+
+		errno = 0;
+		e->fde_nvl_callback(fd, NULL, e->fde_udata);
+	}
+}
+
+int
+fd_readnvlist(fd, callback, udata)
+	int		fd;
+	fde_nvl_callback callback;
+	void		*udata;
+{
+	assert(fd >= 0);
+	assert(callback);
+
+	fd_table[fd].fde_nvl_callback = callback;
+	return (register_fd(fd, FDE_READ, fd_nvl_callback, udata));
 }
 
 int
@@ -440,6 +547,30 @@ fde_t	*e;
 }
 
 int
+fd_write_nvlist(fd, nvl, encoding)
+	int		 fd;
+	nvlist_t	*nvl;
+	int		 encoding;
+{
+size_t	 size;
+char	*buf = NULL;
+int	 ret;
+uint32_t len;
+	assert(fd >= 0 && fd < nfds);
+	assert(nvl);
+
+	if (nvlist_pack(nvl, &buf, &size, encoding, 0))
+		return (-1);
+
+	len = htonl(size);
+	ret = fd_write(fd, (char *) &len, sizeof(len));
+	if (ret != -1)
+		ret = fd_write(fd, buf, size);
+	free(buf);
+	return (ret);
+}
+
+int
 fd_write(fd, buf, sz)
 	int		 fd;
 	char const	*buf;
@@ -462,7 +593,6 @@ fde_t	*e;
 			return (-1);
 	return (0);
 }
-
 /*
  * Write out all pending data from fd's buffer, if possible.
  */
@@ -509,15 +639,11 @@ fd_putln(fd, str)
 	return (fd_puts(fd, "\r\n"));
 }
 
-#if 0
 int
 fd_vprintf(fd, fmt, ap)
 	int		 fd;
 	char const	*fmt;
 	va_list		 ap;
-#endif
-int
-fd_vprintf(int fd, char const *fmt, va_list ap)
 {
 int	 len;
 char	*buf;

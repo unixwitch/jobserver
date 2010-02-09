@@ -48,140 +48,67 @@ typedef struct ctl_client {
 } ctl_client_t;
 static LIST_HEAD(client_list, ctl_client) clients;
 
-void	c_helo(ctl_client_t *, void **);
-void	c_quit(ctl_client_t *, void **);
-void	c_crte(ctl_client_t *, void **);
-void	c_dele(ctl_client_t *, void **);
-void	c_list(ctl_client_t *, void **);
-void	c_chng(ctl_client_t *, void **);
-void	c_schd(ctl_client_t *, void **);
-void	c_ushd(ctl_client_t *, void **);
-void	c_stat(ctl_client_t *, void **);
-void	c_clea(ctl_client_t *, void **);
-void	c_lisr(ctl_client_t *, void **);
-void	c_conf(ctl_client_t *, void **);
-void	c_gcnf(ctl_client_t *, void **);
-void	c_strt(ctl_client_t *, void **);
-void	c_uset(ctl_client_t *, void **);
-void	c_stop(ctl_client_t *, void **);
+static void	c_helo(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_quit(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_create(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_delete(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_list(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_set_property(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_schedule(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_unschedule(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_stat(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_clear(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_list_rctls(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_set_config(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_get_config(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_start(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_stop(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_enable(ctl_client_t *, job_t *job, nvlist_t *);
+static void	c_disable(ctl_client_t *, job_t *job, nvlist_t *);
 
 static void ctl_client_accept(int, fde_evt_type_t, void *);
-static void ctl_readline(int, char *, size_t, void *);
 static void ctl_close(ctl_client_t *);
-/*PRINTFLIKE2*/
-static int ctl_printf(ctl_client_t *, char const *, ...);
+static int ctl_send(ctl_client_t *, ...);
+static int ctl_send_nvlist(ctl_client_t *, nvlist_t *);
+static void ctl_readnv(int, nvlist_t *, void *);
+#define ctl_error(c, e) ctl_send((c), "error", DATA_TYPE_STRING, e, NULL)
+#define ctl_message(c, m) ctl_send((c), "message", DATA_TYPE_STRING, m, NULL)
 
-#define	ARG_T_INT	0x1
-#define	ARG_T_STR	0x2
-#define	ARG_T_FMRI	0x4
-#define	ARG_T_REST	0x8
-#define	ARG_T_MASK	0xF
-
-#define	ARG_J_VIEW	0x1000
-#define	ARG_J_STARTSTOP	0x2000
-#define	ARG_J_MODIFY	0x4000
-#define	ARG_J_DELETE	0x8000
-#define	ARG_J_MASK	0xF000
-
-#define	MAXARGS 16
+#define CMD_F_FMRI	0x001
+#define CMD_F_MASK	0x0FF
+#define CMD_J_VIEW	0x100
+#define CMD_J_DELETE	0x200
+#define CMD_J_STARTSTOP	0x400
+#define CMD_J_MODIFY	0x800
+#define CMD_J_MASK	0xF00
 
 static struct command {
 	char const	*cmd;
 	ctl_state_t	 state;
-	int		 nargs;
-	void (*handler) (ctl_client_t *, void **);
-	int		 args[16];
+	void (*handler) (ctl_client_t *, job_t *, nvlist_t *);
+	int		 flags;
 } commands[] = {
-	{ "HELO", WAIT_HELO, 1, c_helo, {
-		ARG_T_INT
-	} },
-	{ "QUIT", ANY_STATE, 0, c_quit },
-	{ "CRTE",	RUNNING,	1, c_crte, {
-		ARG_T_STR
-	} },
-	{ "DELE", RUNNING, 1, c_dele, {
-		(ARG_T_FMRI | ARG_J_DELETE)
-	} },
-	{ "LIST", RUNNING, 0, c_list },
-	{ "CHNG", RUNNING, 2, c_chng, {
-		(ARG_T_FMRI | ARG_J_MODIFY),
-		ARG_T_STR
-	} },
-	{ "SCHD", RUNNING, 2, c_schd, {
-		(ARG_T_FMRI | ARG_J_STARTSTOP),
-		ARG_T_STR
-	} },
-	{ "USHD", RUNNING, 1, c_ushd, {
-		(ARG_T_FMRI | ARG_J_STARTSTOP)
-	} },
-	{ "STAT", RUNNING, 1, c_stat, {
-		(ARG_T_FMRI | ARG_J_VIEW)
-	} },
-	{ "CLEA", RUNNING, 1, c_clea, {
-		(ARG_T_FMRI | ARG_J_STARTSTOP)
-	} },
-	{ "LISR", RUNNING, 2, c_lisr, {
-		(ARG_T_FMRI | ARG_J_VIEW),
-		ARG_T_STR
-	} },
-	{ "GCNF", RUNNING, 0, c_gcnf, {
-		ARG_T_STR,
-	} },
-	{ "CONF", RUNNING, 1, c_conf, {
-		ARG_T_STR,
-		ARG_T_STR
-	} },
-	{ "STRT", RUNNING, 1, c_strt, {
-		(ARG_T_FMRI | ARG_J_STARTSTOP)
-	} },
-	{ "USET", RUNNING, 2, c_uset, {
-		(ARG_T_FMRI | ARG_J_MODIFY),
-		ARG_T_STR
-	} },
-	{ "STOP", RUNNING, 1, c_stop, {
-		(ARG_T_FMRI | ARG_J_STARTSTOP)
-	} },
+	{ "helo",	WAIT_HELO, c_helo, 0 },
+	{ "quit",	ANY_STATE, c_quit, 0 },
+	{ "create",	RUNNING, c_create, 0 },
+	{ "delete",	RUNNING, c_delete, CMD_F_FMRI | CMD_J_DELETE },
+	{ "list",	RUNNING, c_list, 0 },
+	{ "set_property", RUNNING, c_set_property, CMD_F_FMRI | CMD_J_MODIFY },
+	{ "schedule",	RUNNING, c_schedule, CMD_F_FMRI | CMD_J_STARTSTOP },
+	{ "unschedule",	RUNNING, c_unschedule, CMD_F_FMRI | CMD_J_STARTSTOP },
+	{ "stat",	RUNNING, c_stat, CMD_F_FMRI | CMD_J_VIEW },
+	{ "clear", 	RUNNING, c_clear, CMD_F_FMRI | CMD_J_STARTSTOP },
+	{ "list_rctls",	RUNNING, c_list_rctls, CMD_F_FMRI | CMD_J_VIEW },
+	{ "get_config",	RUNNING, c_get_config, 0 },
+	{ "set_config",	RUNNING, c_set_config, 0 },
+	{ "start",	RUNNING, c_start, CMD_F_FMRI | CMD_J_STARTSTOP },
+	{ "stop",	RUNNING, c_stop, CMD_F_FMRI | CMD_J_STARTSTOP },
+	{ "enable",	RUNNING, c_enable,	CMD_F_FMRI | CMD_J_STARTSTOP },
+	{ "disable",	RUNNING, c_disable,	CMD_F_FMRI | CMD_J_STARTSTOP },
 };
 
 static ctl_client_t *find_client(int);
 static ctl_client_t *new_client(int);
-
-static char *next_word(char **);
-static job_t *next_job(char **, ctl_client_t *client, int action);
-
-/*
- * Takes the first word from 'p', returns the old value
- * of p, and advances p to the start of the next word.
- */
-static char *
-next_word(str)
-	char	**str;
-{
-char	*ret;
-
-	while (**str && **str == ' ')
-		++(*str);
-
-	if (**str == 0)
-		return (NULL);
-
-	ret = *str;
-
-	if (*ret == ':') {
-		*str += strlen(*str);
-		return (ret + 1);
-	}
-
-	while (**str && **str != ' ')
-		++(*str);
-
-	if (**str) {
-		**str = 0;
-		++(*str);
-	}
-
-	return (ret);
-}
 
 static ctl_client_t *
 find_client(fd)
@@ -367,15 +294,8 @@ struct passwd	*pwd;
 		goto err;
 	}
 
-	if (fd_printf(newfd, "200 Jobserver %s at your service.\r\n",
-	    VERSION) == -1) {
-		logm(LOG_ERR, "ctl_client_accept: fd_printf(%d): %s",
-		    newfd, strerror(errno));
-		goto err;
-	}
-
-	if (fd_readline(newfd, ctl_readline, c) == -1) {
-		logm(LOG_ERR, "ctl_client_accept: fd_readline(%d): %s",
+	if (fd_readnvlist(newfd, ctl_readnv, c) == -1) {
+		logm(LOG_ERR, "ctl_client_accept: fd_readnvlist(%d): %s",
 		    newfd, strerror(errno));
 		goto err;
 	}
@@ -392,33 +312,30 @@ err:
 }
 
 static void
-ctl_readline(fd, data, size, udata)
+ctl_readnv(fd, nvl, udata)
 	int	 fd;
-	char	*data;
-	size_t	 size;
+	nvlist_t *nvl;
 	void	*udata;
 {
 char		*cmd;
 size_t		 i;
 ctl_client_t	*client;
-void		*args[MAXARGS + 1];
-int		 j, k = 0;
 struct command	*cmds = NULL;
+job_t		*job = NULL;
 
 	client = udata;
 	assert(fd == client->cc_fd);
 
-	if (data == NULL) {
-		if (size)
+	if (nvl == NULL) {
+		if (errno)
 			logm(LOG_DEBUG, "fd=%d client read error: %s",
-					/*LINTED*/
-					fd, strerror((int)size));
+					fd, strerror(errno));
 		ctl_close(client);
 		return;
 	}
 
-	if ((cmd = next_word(&data)) == NULL) {
-		if (ctl_printf(client, "500 No command on line.\r\n") == -1)
+	if (nvlist_lookup_string(nvl, "command", &cmd)) {
+		if (ctl_error(client, "No command given") == -1)
 			ctl_close(client);
 		return;
 	}
@@ -429,8 +346,8 @@ struct command	*cmds = NULL;
 
 		if (commands[i].state != ANY_STATE &&
 		    (commands[i].state != client->cc_state)) {
-			if (ctl_printf(client, "500 %s: Inappropriate "
-			    "state for that command.\r\n", cmd) == -1)
+			if (ctl_error(client,
+			    "Inappropriate state for that command") == -1)
 				ctl_close(client);
 			return;
 		}
@@ -439,130 +356,103 @@ struct command	*cmds = NULL;
 	}
 
 	if (!cmds) {
-		if (ctl_printf(client, "500 %s: "
-		    "Unknown command.\r\n", cmd) == -1)
+		if (ctl_error(client, "Unknown command") == -1)
 			ctl_close(client);
 		return;
 	}
 
-	for (j = 0; j < cmds->nargs; ++j) {
-	int		 fl = 0;
-	char		*astr;
-		switch (cmds->args[j] & ARG_T_MASK) {
-		case ARG_T_FMRI:
-			if (cmds->args[j] & ARG_J_STARTSTOP)
-				fl |= JOB_STARTSTOP;
-			if (cmds->args[j] & ARG_J_VIEW)
-				fl |= JOB_VIEW;
-			if (cmds->args[j] & ARG_J_MODIFY)
-				fl |= JOB_MODIFY;
-			if (cmds->args[j] & ARG_J_DELETE)
-				fl |= JOB_DELETE;
-			if ((args[k] = next_job(&data, client, fl)) == NULL)
-				goto err;
-			break;
-
-		case ARG_T_STR:
-			if ((args[k] = next_word(&data)) == NULL) {
-				(void) ctl_printf(client,
-				    "500 Not enough arguments.\r\n");
-				goto err;
-			}
-			break;
-
-		case ARG_T_INT:
-			if ((astr = next_word(&data)) == NULL) {
-				(void) ctl_printf(client,
-				    "500 Not enough arguments.\r\n");
-				goto err;
-			}
-			if ((args[k] = malloc(sizeof (long long))) == NULL) {
-				(void) ctl_printf(client,
-				    "500 Internal error.\r\n");
-				logm(LOG_ERR, "out of memory");
-				goto err;
-			}
-			*(long long *)args[k] = strtoll(astr, NULL, 10);
-			break;
-
-		case ARG_T_REST:
-			args[k] = data;
-			break;
-
-		default:
-			abort();
+	if (cmds->flags & CMD_F_FMRI) {
+	char	*fmri;
+	int	 action = 0;
+		if (nvlist_lookup_string(nvl, "fmri", &fmri)) {
+			if (ctl_error(client, "FMRI not specified") == -1)
+				ctl_close(client);
+			return;
 		}
-		k++;
-	}
 
-	cmds->handler(client, args);
+		if ((job = find_job_fmri(fmri)) == NULL) {
+			if (ctl_error(client, "FMRI not specified") == -1)
+				ctl_close(client);
+			return;
+		}
 
-err:
-	for (j = 0; j < cmds->nargs; ++j) {
-		switch (cmds->args[j] & ARG_T_MASK) {
-		case ARG_T_FMRI:
-		case ARG_T_STR:
-		case ARG_T_REST:
-			break;
-
-		case ARG_T_INT:
-			free(args[k]);
-			break;
-
-		default:
-			abort();
+		if ((cmds->flags & CMD_J_MASK) & CMD_J_VIEW)
+			action |= JOB_VIEW;
+		if ((cmds->flags & CMD_J_MASK) & CMD_J_MODIFY)
+			action |= JOB_MODIFY;
+		if ((cmds->flags & CMD_J_MASK) & CMD_J_STARTSTOP)
+			action |= JOB_STARTSTOP;
+		if ((cmds->flags & CMD_J_MASK) & CMD_J_DELETE)
+			action |= JOB_DELETE;
+		if (!job_access(job, client->cc_name, action)) {
+			if (ctl_error(client, "Permission denied") == -1)
+				ctl_close(client);
+			return;
 		}
 	}
+
+	cmds->handler(client, job, nvl);
+	if (client->cc_state == DEAD)
+		ctl_close(client);
 }
 
 void
-c_helo(client, args)
+c_helo(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-long long	version = *(long long *)args[0];
+int16_t	version;
+	(void) job;
+	if (nvlist_lookup_int16(args, "version", &version)) {
+		(void) ctl_error(client, "No version specified");
+		return;
+	}
 
 	if (version != PROTOCOL_VERSION) {
-		(void) ctl_printf(client, "500- HELO: "
-		    "Unsupported protocol version %lld.\r\n", version);
-		(void) ctl_printf(client, "500 "
-		    "I support protocol version %d.\r\n", PROTOCOL_VERSION);
+		(void) ctl_error(client, "Unsupported protocol version");
 		return;
 	}
 
 	if (!client->cc_user && !client->cc_admin) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
-		ctl_close(client);
+		(void) ctl_error(client, "Permission denied");
+		client->cc_state = DEAD;
 		return;
 	}
 
-	(void) ctl_printf(client, "200 Hello (uid=%ld), "
-	    "pleased to meet you.\r\n",
-	    (long)client->cc_uid);
+	(void) ctl_message(client, "OK");
 	client->cc_state = RUNNING;
 }
 
 void
-c_quit(client, args)
+c_quit(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-	(void) ctl_printf(client, "200 Call again soon.\r\n");
-	ctl_close(client);
+	(void) job;
+	(void) args;
+	(void) ctl_message(client, "Bye");
+	client->cc_state = DEAD;
 }
 
 /*
  * Create a new job and return its id.
  */
 void
-c_crte(client, args)
+c_create(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-char const	*name = args[0];
-job_t		*job;
-char const	*p;
-int		 quota;
+char 	*name;
+char 	*p;
+int	 quota;
+
+	if (nvlist_lookup_string(args, "name", &name)) {
+		(void) ctl_error(client, "No name specified");
+		return;
+	}
 
 	/*
 	 * Ensure the job name is valid.  / is allowed, except not at the start
@@ -573,94 +463,137 @@ int		 quota;
 	for (p = name; *p; ++p) {
 		if (*p == '/') {
 			if (p == name) {
-				(void) ctl_printf(client, "500 "
-				    "Job name cannot start with a /.\r\n");
+				(void) ctl_error(client,
+				    "Job name cannot start with a /.");
 				return;
 			}
 
 			if (*(p + 1) == '/') {
-				(void) ctl_printf(client, "500 "
+				(void) ctl_error(client,
 				    "Job name cannot contain //.\r\n");
 				return;
 			}
 		}
 
 		if (!isalnum(*p) && strchr("-_/", *p) == NULL) {
-			(void) ctl_printf(client, "500 "
-			    "Job name contains invalid characters.\r\n");
+			(void) ctl_error(client,
+			    "Job name contains invalid characters.");
 			return;
 		}
 	}
 
 	if (*(p - 1) == '/') {
-		(void) ctl_printf(client, "500 "
-		    "Job name cannot end with a /.\r\n");
+		(void) ctl_error(client,
+		    "Job name cannot end with a /.");
 		return;
 	}
 
 	if (quota = quota_get_jobs_per_user()) {
 		if (njobs_for_user(client->cc_name) >= quota) {
-			(void) ctl_printf(client, "500 "
-			    "Job quota exceeded.\r\n");
+			(void) ctl_error(client,
+			    "Job quota exceeded.");
 			return;
 		}
 	}
 
 	if ((job = create_job(client->cc_name, name)) == NULL) {
-		(void) ctl_printf(client, "500 "
-		    "Failed to allocate new job.\r\n");
+		(void) ctl_error(client,
+		    "Failed to allocate new job.");
 		return;
 	}
 
-	(void) ctl_printf(client, "200 %s\r\n", job->job_fmri);
+	(void) ctl_send(client,
+	    "fmri", DATA_TYPE_STRING, job->job_fmri,
+	    NULL);
 }
 
 void
-c_dele(client, args)
+c_delete(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t	*job = args[0];
-
+	(void) args;
 	if (sched_get_state(job) != SJOB_STOPPED) {
-		(void) ctl_printf(client, "505 "
-		    "Cannot delete a running job.\r\n");
+		(void) ctl_error(client,
+		    "Cannot delete a running job.");
 		return;
 	}
 
 	if (delete_job(job) != 0)
-		(void) ctl_printf(client, "502 "
-		    "Could not delete job.\r\n");
+		(void) ctl_error(client, strerror(errno));
 	else
-		(void) ctl_printf(client, "200 OK.\r\n");
+		(void) ctl_message(client, "OK");
 }
 
 static int
-ctl_printf(ctl_client_t *client, char const *fmt, ...)
+ctl_send_nvlist(client, nvl)
+	ctl_client_t	*client;
+	nvlist_t	*nvl;
 {
-va_list	ap;
 int	ret = 0;
+	if ((ret = fd_write_nvlist(client->cc_fd, nvl, NV_ENCODE_XDR)) == -1)
+		client->cc_state = DEAD;
+	return ret;
+}
+
+static int
+ctl_send(ctl_client_t *client, ...)
+{
+va_list		 ap;
+int		 ret = 0;
+nvlist_t	*nvl;
 
 	if (client->cc_state == DEAD)
 		return (-1);
 
-	va_start(ap, fmt);
-	if ((fd_vprintf(client->cc_fd, fmt, ap)) == -1)
-		ret = -1, client->cc_state = DEAD;
+	if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0))
+		return -1;
+
+	va_start(ap, client);
+	for (;;) {
+	char const	*name;
+
+		if ((name = va_arg(ap, char const *)) == NULL)
+			break;
+
+		switch (va_arg(ap, data_type_t)) {
+		case DATA_TYPE_STRING:
+			nvlist_add_string(nvl, name, va_arg(ap, char const *));
+			break;
+		default:
+			abort();
+		}
+	}
 	va_end(ap);
 
+	if ((fd_write_nvlist(client->cc_fd, nvl, NV_ENCODE_XDR)) == -1)
+		ret = -1, client->cc_state = DEAD;
+	
+	nvlist_free(nvl);
 	return (ret);
+
+err:
+	nvlist_free(nvl);
+	return -1;
 }
+
+struct list_callback {
+	ctl_client_t *client;
+	nvlist_t **jobs;
+	size_t njobs;
+};
 
 int
 list_callback(job, udata)
 	job_t	*job;
 	void	*udata;
 {
-ctl_client_t	*client = udata;
+struct list_callback *data = udata;
 char const	*state, *rstate;
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, JOB_VIEW))
+nvlist_t	**nj;
+nvlist_t	*nvl;
+	if (!data->client->cc_admin && !job_access(job, data->client->cc_name, JOB_VIEW))
 		return (0);
 
 	if (job->job_flags & JOB_SCHEDULED) {
@@ -693,153 +626,179 @@ char const	*state, *rstate;
 		}
 	}
 
-	(void) ctl_printf(client, "201 %s %s %s\r\n",
-			job->job_fmri, state, rstate);
+	if ((nj = realloc(data->jobs, sizeof(nvlist_t *) * (data->njobs + 1))) == NULL)
+		return 1;
+	data->jobs = nj;
+
+	nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0);
+	nvlist_add_string(nvl, "fmri", job->job_fmri);
+	nvlist_add_string(nvl, "state", state);
+	nvlist_add_string(nvl, "rstate", rstate);
+	data->jobs[data->njobs] = nvl;
+	data->njobs++;
 	return (0);
 }
 
 void
-c_list(client, args)
+c_list(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-	(void) ctl_printf(client, "200 Job list follows.\r\n");
+nvlist_t *resp;
+struct list_callback data;
 
-	if (job_enumerate(list_callback, client) == -1) {
+	(void) args;
+
+	bzero(&data, sizeof(data));
+	data.client = client;
+	if (job_enumerate(list_callback, &data) == -1) {
 		logm(LOG_WARNING, "c_list: job_enumerate failed");
-		(void) ctl_printf(client, "500 Internal server error.\r\n");
+		(void) ctl_error(client, "Internal error");
 		return;
 	}
 
-	(void) ctl_printf(client, "202 End of job list.\r\n");
+	nvlist_alloc(&resp, NV_UNIQUE_NAME, 0);
+	nvlist_add_nvlist_array(resp, "jobs", data.jobs, data.njobs);
+	(void) ctl_send_nvlist(client, resp);
+	nvlist_free(resp);
 }
 
 void
-c_clea(client, args)
+c_clear(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t	*job = args[0];
-
+	(void) args;
 	if (!(job->job_flags & JOB_MAINTENANCE)) {
-		(void) ctl_printf(client, "500 Job is "
-		    "not in a maintenance state.\r\n");
+		(void) ctl_error(client,
+		    "Job is not in a maintenance state.");
 		return;
 	}
 
 	if (job_clear_maintenance(job) == -1)
-		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
+		ctl_error(client, strerror(errno));
 	else
-		(void) ctl_printf(client, "200 OK.\r\n");
+		ctl_message(client, "OK");
 }
 
 void
-c_ushd(client, args)
+c_unschedule(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t	*job = args[0];
-
+	(void) args;
 	if (!(job->job_flags & JOB_SCHEDULED)) {
-		(void) ctl_printf(client, "500 Job is not scheduled.\r\n");
+		(void) ctl_error(client, "Job is not scheduled.");
 		return;
 	}
 
 	if (job_unschedule(job) == -1)
-		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
+		(void) ctl_error(client, strerror(errno));
 	else
-		(void) ctl_printf(client, "200 OK.\r\n");
+		(void) ctl_message(client, "OK");
 }
 
 void
-c_stop(client, args)
+c_stop(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t	*job = args[0];
-
+	(void) args;
 	if (sched_get_state(job) != SJOB_RUNNING) {
-		(void) ctl_printf(client, "500 Job is not running.\r\n");
+		(void) ctl_error(client, "Job is not running");
 		return;
 	}
 
 	if (sched_stop(job) == -1)
-		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
+		(void) ctl_error(client, strerror(errno));
 	else
-		(void) ctl_printf(client, "200 OK.\r\n");
+		(void) ctl_message(client, "OK");
 }
 
 void
-c_schd(client, args)
+c_schedule(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t	*job = args[0];
-char	*time = args[1];
+char	*time;
+
+	if (nvlist_lookup_string(args, "schedule", &time)) {
+		(void) ctl_error(client, "No schedule specified");
+		return;
+	}
 
 	if (job->job_flags & JOB_ENABLED) {
-		(void) ctl_printf(client, "500 Cannot "
-		    "schedule an enabled job.\r\n");
+		(void) ctl_error(client, "Cannot schedule an enabled job");
 		return;
 	}
 
 	if (job_set_schedule(job, time) == -1)
-		(void) ctl_printf(client, "500 %s\r\n", strerror(errno));
+		(void) ctl_error(client, strerror(errno));
 	else
-		(void) ctl_printf(client, "200 OK.\r\n");
+		(void) ctl_message(client, "OK");
 }
 
 void
-c_stat(client, args)
+c_stat(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t		*job = args[0];
-char const	*state, *rstate;
+nvlist_t	*njob, *resp;
 char		 buf[64];
+	(void) args;
 
-	(void) ctl_printf(client, "200 Job status follows.\r\n");
+	if (nvlist_alloc(&njob, NV_UNIQUE_NAME, 0)) {
+		(void) ctl_error(client, "Internal error");
+		logm(LOG_ERR, "out of memory");
+		return;
+	}
 
 	if (job->job_flags & JOB_SCHEDULED) {
 		if (job->job_flags & JOB_ENABLED)
-			state = "scheduled/enabled";
+			nvlist_add_string(njob, "state", "scheduled/enabled");
 		else
-			state = "scheduled/disabled";
+			nvlist_add_string(njob, "state", "scheduled/disabled");
 	} else if (job->job_flags & JOB_ENABLED)
-		state = "enabled";
+		nvlist_add_string(njob, "state", "enabled");
 	else
-		state = "disabled";
+		nvlist_add_string(njob, "state", "disabled");
 
 	if (job->job_flags & JOB_MAINTENANCE)
-		rstate = "maintenance";
+		nvlist_add_string(njob, "rstate", "maintenance");
 	else {
 		switch (sched_get_state(job)) {
 		case SJOB_RUNNING:
-			rstate = "running";
+			nvlist_add_string(njob, "rstate", "running");
 			break;
 		case SJOB_STOPPING:
-			rstate = "stopping";
+			nvlist_add_string(njob, "rstate", "stopping");
 			break;
 		case SJOB_STOPPED:
-			rstate = "stopped";
+			nvlist_add_string(njob, "rstate", "stopped");
 			break;
 		default:
 		case SJOB_UNKNOWN:
-			rstate = "unknown";
+			nvlist_add_string(njob, "rstate", "unknown");
 			break;
 		}
 	}
 
-	(void) ctl_printf(client, "201 :%s\r\n", job->job_fmri);
-
-	(void) ctl_printf(client, "204 :%s\r\n", state);
-	(void) ctl_printf(client, "205 :%s\r\n", rstate);
-	(void) ctl_printf(client, "206 :%s\r\n", job->job_start_method);
-	(void) ctl_printf(client, "207 :%s\r\n", job->job_stop_method);
+	nvlist_add_string(njob, "fmri", job->job_fmri);
+	nvlist_add_string(njob, "start", job->job_start_method);
+	if (job->job_stop_method)
+		nvlist_add_string(njob, "stop", job->job_stop_method);
 	if (job->job_logfmt)
-		(void) ctl_printf(client, "214 :%s\r\n", job->job_logfmt);
-	(void) ctl_printf(client, "215 :%d %d\r\n",
-	    job->job_logsize, job->job_logkeep);
+		nvlist_add_string(njob, "logfmt", job->job_logfmt);
+	else
+		nvlist_add_string(njob, "logfmt", DEFAULT_LOGFMT);
+	nvlist_add_uint64(njob, "logsize", job->job_logsize);
+	nvlist_add_uint32(njob, "logkeep", job->job_logkeep);
 
 	buf[0] = 0;
 	if (job->job_exit_action & ST_EXIT_RESTART)
@@ -848,7 +807,7 @@ char		 buf[64];
 		(void) strlcat(buf, "disable", sizeof (buf));
 	if (job->job_exit_action & ST_EXIT_MAIL)
 		(void) strlcat(buf, ",mail", sizeof (buf));
-	(void) ctl_printf(client, "210 :%s\r\n", buf);
+	nvlist_add_string(njob, "exit", buf);
 
 	buf[0] = 0;
 	if (job->job_fail_action & ST_EXIT_RESTART)
@@ -857,7 +816,7 @@ char		 buf[64];
 		(void) strlcat(buf, "disable", sizeof (buf));
 	if (job->job_fail_action & ST_EXIT_MAIL)
 		(void) strlcat(buf, ",mail", sizeof (buf));
-	(void) ctl_printf(client, "211 :%s\r\n", buf);
+	nvlist_add_string(njob, "fail", buf);
 
 	buf[0] = 0;
 	if (job->job_crash_action & ST_EXIT_RESTART)
@@ -866,242 +825,368 @@ char		 buf[64];
 		(void) strlcat(buf, "disable", sizeof (buf));
 	if (job->job_crash_action & ST_EXIT_MAIL)
 		(void) strlcat(buf, ",mail", sizeof (buf));
-	(void) ctl_printf(client, "212 :%s\r\n", buf);
+	nvlist_add_string(njob, "crash", buf);
 
 	if (job->job_project)
-		(void) ctl_printf(client, "209 :%s\r\n", job->job_project);
+		nvlist_add_string(njob, "project", job->job_project);
 	else
-		(void) ctl_printf(client, "209 :default\r\n");
+		nvlist_add_string(njob, "project", "default");
+
 	if (job->job_flags & JOB_SCHEDULED) {
-		(void) ctl_printf(client, "208 :%s\r\n",
+		nvlist_add_string(njob, "schedule",
 		    cron_to_string(&job->job_schedule));
 
 		if (job->job_flags & JOB_ENABLED)
-			(void) ctl_printf(client, "213 :%s\r\n",
+			nvlist_add_string(njob, "nextrun",
 			    cron_to_string_interval(&job->job_schedule));
-	} else
-		(void) ctl_printf(client, "208 :-\r\n");
-	(void) ctl_printf(client, "299 End of dump.\r\n");
+	}
+
+	nvlist_alloc(&resp, NV_UNIQUE_NAME, 0);
+	nvlist_add_nvlist(resp, "job", njob);
+	ctl_send_nvlist(client, resp);
+	nvlist_free(resp);
+	nvlist_free(njob);
 }
 
-void
-c_chng(client, args)
+/*
+ * set_property:
+ * Handle setting or unsetting properties on a job.  Each property that can be
+ * set has its own function.  c_set_property handles dispatch.
+ */
+static char const *
+set_start_method(client, job, value)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvpair_t	*value;
 {
-job_t	*job = args[0];
-char	*arg = args[1];
-char	*key = arg, *value;
+char	*method;
+	nvpair_value_string(value, &method);
+	if (job_set_start_method(job, method) == -1)
+		return strerror(errno);
+	return NULL;
+}
 
-	if ((value = index(arg, '=')) == NULL) {
-		(void) ctl_printf(client, "500 Invalid format.\r\n");
-		return;
+static char const *
+set_stop_method(client, job, value)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*value;
+{
+char	*method = NULL;
+	if (nvpair_type(value) == DATA_TYPE_BOOLEAN)
+		nvpair_value_string(value, &method);
+	if (job_set_start_method(job, method) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+static char const *
+set_fmri(client, job, value)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*value;
+{
+char		*pfx;
+char		*fmri;
+char const	*err = NULL;
+
+	nvpair_value_string(value, &fmri);
+
+	if (!valid_fmri(fmri))
+		return "Invalid FMRI";
+
+	if (asprintf(&pfx, "job:/%s/", client->cc_name) == -1) {
+		logm(LOG_ERR, "out of memory");
+		return "Internal error";
 	}
 
-	*value++ = 0;
-
-	if (strcmp(key, "start") == 0) {
-		if (job_set_start_method(job, value) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change start method.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "stop") == 0) {
-		if (job_set_stop_method(job, value) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change stop method.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "fmri") == 0) {
-	char	*pfx;
-
-		if (!valid_fmri(value)) {
-			(void) ctl_printf(client,
-			    "500 Invalid FMRI.\r\n");
-			return;
-		}
-
-		if (asprintf(&pfx, "job:/%s/", client->cc_name) == -1) {
-			(void) ctl_printf(client,
-			    "500 Internal error.\r\n");
-			logm(LOG_ERR, "out of memory");
-			return;
-		}
-
-		if (strncmp(pfx, value, strlen(pfx))) {
-			(void) ctl_printf(client, "500 New FMRI "
-			    "is outside your namespace (%s).\r\n", pfx);
-			free(pfx);
-			return;
-		}
-
+	if (strncmp(pfx, fmri, strlen(pfx))) {
 		free(pfx);
-		if (job_set_fmri(job, value) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change job FMRI.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "name") == 0) {
-	char	*fmri;
-		if (asprintf(&fmri, "job:/%s/%s",
-		    client->cc_name, value) == -1) {
-			(void) ctl_printf(client,
-			    "500 Internal error.\r\n");
-			logm(LOG_ERR, "out of memory");
-			return;
-		}
+		return "New FMRI is outside your namespace";
+	}
 
-		if (!valid_fmri(fmri)) {
-			(void) ctl_printf(client,
-			    "500 Invalid name.\r\n");
-			free(fmri);
-			return;
-		}
+	free(pfx);
+	if (job_set_fmri(job, fmri) == -1)
+		return strerror(errno);
+	return NULL;
+}
 
-		if (job_set_fmri(job, fmri) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change job FMRI.\r\n");
-		} else {
-			(void) ctl_printf(client, "200 OK.\r\n");
-		}
+static char const *
+set_name(client, job, value)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*value;
+{
+char		*fmri;
+char		*name;
+char const	*err = NULL;
 
+	nvpair_value_string(value, &name);
+
+	if (asprintf(&fmri, "job:/%s/%s",
+	    client->cc_name, name) == -1) {
+		logm(LOG_ERR, "out of memory");
+		return "Internal error";
+	}
+
+	if (!valid_fmri(fmri)) {
 		free(fmri);
-		return;
-	} else if (strcmp(key, "project") == 0) {
-		if (job_set_project(job, value) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change project.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "logfmt") == 0) {
-		if (job_set_logfmt(job, value) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change log format.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "logkeep") == 0) {
-	int	logkeep;
-	char	*endp;
-		errno = 0;
-		logkeep = strtol(value, &endp, 10);
-		if ((logkeep == 0 && errno != 0) ||
-		    endp != (value + strlen(value))) {
-			(void) ctl_printf(client, "500 "
-			    "Invalid number.\r\n");
-			return;
-		}
-		if (job_set_logkeep(job, logkeep) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change value.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "logsize") == 0) {
-	int	logsize;
-	char	*endp;
-		errno = 0;
-		logsize = strtol(value, &endp, 10);
-		if ((logsize == 0 && errno != 0) ||
-		    endp != (value + strlen(value))) {
-			(void) ctl_printf(client, "500 "
-			    "Invalid number.\r\n");
-			return;
-		}
-		if (job_set_logsize(job, logsize) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Could not change value.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "enabled") == 0) {
-		if (strcmp(value, "1") == 0) {
-			if (job_enable(job) == -1) {
-				(void) ctl_printf(client, "500 "
-				    "Could not enable job.\r\n");
-				return;
-			}
-		} else if (strcmp(value, "0") == 0) {
-			if (job_disable(job) == -1) {
-				(void) ctl_printf(client, "500 "
-				    "Could not disable job.\r\n");
-				return;
-			}
-		} else {
-			(void) ctl_printf(client,
-			    "500 Invalid syntax.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (strcmp(key, "exit") == 0 ||
-		strcmp(key, "crash") == 0 ||
-		strcmp(key, "fail") == 0) {
-	char	*v;
-	int	 action = 0;
-	int (*func)(job_t *, int);
+		return "Invalid name";
+	}
 
-		for (v = strtok(value, ", "); v;
-		    v = strtok(NULL, ", ")) {
-			if (strcmp(v, "mail") == 0)
-				action |= ST_EXIT_MAIL;
-			else if (strcmp(v, "disable") == 0)
-				action |= ST_EXIT_DISABLE;
-			else if (strcmp(v, "restart") == 0)
-				action |= ST_EXIT_RESTART;
-			else {
-				(void) ctl_printf(client, "500 "
-				    "Invalid action \"%s\".\r\n", v);
-				return;
-			}
-		}
+	if (job_set_fmri(job, fmri) == -1)
+		err = strerror(errno);
+	free(fmri);
+	return err;
+}
 
-		if ((action & (ST_EXIT_DISABLE | ST_EXIT_RESTART))
-		    == 0) {
-			(void) ctl_printf(client, "500 Either restart "
-			    "or disable must be specified.\r\n");
-			return;
-		}
+static char const *
+set_project(client, job, value)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*value;
+{
+char	*project;
+	if (nvpair_type(value) == DATA_TYPE_BOOLEAN)
+		project = NULL;
+	else
+		nvpair_value_string(value, &project);
 
-		if (strcmp(key, "exit") == 0)
-			func = job_set_exit_action;
-		else if (strcmp(key, "crash") == 0)
-			func = job_set_crash_action;
-		else if (strcmp(key, "fail") == 0)
-			func = job_set_fail_action;
+	if (job_set_project(job, project) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+static char const *
+set_logfmt(client, job, value)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*value;
+{
+char	*fmt;
+	if (nvpair_type(value) == DATA_TYPE_BOOLEAN) {
+		if (job_set_logfmt(job, NULL) == -1)
+			return strerror(errno);
+		return NULL;
+	}
+
+	nvpair_value_string(value, &fmt);
+	if (job_set_logfmt(job, fmt) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+static char const *
+set_logkeep(client, job, value)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*value;
+{
+uint16_t	logkeep;
+	nvpair_value_uint16(value, &logkeep);
+	if (job_set_logkeep(job, logkeep) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+static char const *
+set_logsize(client, job, value)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*value;
+{
+uint64_t	logsize;
+
+	nvpair_value_uint64(value, &logsize);
+	if (job_set_logsize(job, logsize) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+static char const *
+set_exit(client, job, pair)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*pair;
+{
+char	*v;
+int	 action = 0;
+char	*value;
+
+	nvpair_value_string(pair, &value);
+
+	for (v = strtok(value, ", "); v;
+	    v = strtok(NULL, ", ")) {
+		if (strcmp(v, "mail") == 0)
+			action |= ST_EXIT_MAIL;
+		else if (strcmp(v, "disable") == 0)
+			action |= ST_EXIT_DISABLE;
+		else if (strcmp(v, "restart") == 0)
+			action |= ST_EXIT_RESTART;
 		else
-			abort();
+			return "Invalid action";
+	}
 
-		if (func(job, action) == -1) {
-			(void) ctl_printf(client, "500 "
-			    "Cannot set action.\r\n");
-			return;
-		}
-		(void) ctl_printf(client, "200 OK.\r\n");
-	} else if (is_valid_rctl(key)) {
-	u_longlong_t	 qty;
-	char		*endp;
-		errno = 0;
-		qty = strtoull(value, &endp, 10);
-		if ((qty == 0 && errno != 0) ||
-		    endp != (value + strlen(value))) {
-			(void) ctl_printf(client, "500 "
-			    "Invalid number.\r\n");
-			return;
-		}
+	if ((action & (ST_EXIT_DISABLE | ST_EXIT_RESTART)) == 0)
+		return "Either restart or disable must be specified";
 
-		if (job_set_rctl(job, key, qty) == -1)
-			(void) ctl_printf(client, "500 "
-			    "Resource control \"%s\" not set.\r\n", key);
+	if (job_set_exit_action(job, action) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+static char const *
+set_fail(client, job, pair)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*pair;
+{
+char	*v;
+int	 action = 0;
+char	*value;
+
+	nvpair_value_string(pair, &value);
+
+	for (v = strtok(value, ", "); v;
+	    v = strtok(NULL, ", ")) {
+		if (strcmp(v, "mail") == 0)
+			action |= ST_EXIT_MAIL;
+		else if (strcmp(v, "disable") == 0)
+			action |= ST_EXIT_DISABLE;
+		else if (strcmp(v, "restart") == 0)
+			action |= ST_EXIT_RESTART;
 		else
-			(void) ctl_printf(client, "200 OK.\r\n");
-	} else {
-		(void) ctl_printf(client, "500 Invalid property.\r\n");
+			return "Invalid action";
+	}
+
+	if ((action & (ST_EXIT_DISABLE | ST_EXIT_RESTART)) == 0)
+		return "Either restart or disable must be specified";
+
+	if (job_set_exit_action(job, action) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+static char const *
+set_crash(client, job, pair)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvpair_t	*pair;
+{
+char	*value;
+char	*v;
+int	 action = 0;
+
+	nvpair_value_string(pair, &value);
+
+	for (v = strtok(value, ", "); v;
+	    v = strtok(NULL, ", ")) {
+		if (strcmp(v, "mail") == 0)
+			action |= ST_EXIT_MAIL;
+		else if (strcmp(v, "disable") == 0)
+			action |= ST_EXIT_DISABLE;
+		else if (strcmp(v, "restart") == 0)
+			action |= ST_EXIT_RESTART;
+		else
+			return "Invalid action";
+	}
+
+	if ((action & (ST_EXIT_DISABLE | ST_EXIT_RESTART)) == 0)
+		return "Either restart or disable must be specified";
+
+	if (job_set_exit_action(job, action) == -1)
+		return strerror(errno);
+	return NULL;
+}
+
+struct props {
+	char const	*propname;
+	data_type_t	 type;
+	char const * (*handler) (ctl_client_t *client, job_t *job, nvpair_t *pair);
+	int can_unset;
+} set_properties[] = {
+	{ "start",	DATA_TYPE_STRING,	set_start_method,	0 },
+	{ "stop",	DATA_TYPE_STRING,	set_stop_method,	1 },
+	{ "fmri",	DATA_TYPE_STRING,	set_fmri,		0 },
+	{ "name",	DATA_TYPE_STRING,	set_name,		0 },
+	{ "project",	DATA_TYPE_STRING,	set_project,		1 },
+	{ "logfmt",	DATA_TYPE_STRING,	set_logfmt,		1 },
+	{ "logkeep",	DATA_TYPE_UINT16,	set_logkeep,		0 },
+	{ "logsize",	DATA_TYPE_UINT64,	set_logsize,		0 },
+	{ "exit",	DATA_TYPE_STRING,	set_exit,		0 },
+	{ "fail",	DATA_TYPE_STRING,	set_fail,		0 },
+	{ "crash",	DATA_TYPE_STRING,	set_crash,		0 },
+};
+
+void
+c_set_property(client, job, args)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvlist_t	*args;
+{
+nvpair_t	*pair = NULL;
+nvlist_t	*opts;
+nvlist_t	*resp;
+size_t		 i;
+char const	*err;
+
+	if (nvlist_lookup_nvlist(args, "opts", &opts)) {
+		(void) ctl_error(client, "Invalid request");
 		return;
 	}
+
+	nvlist_alloc(&resp, NV_UNIQUE_NAME, 0);
+	while ((pair = nvlist_next_nvpair(opts, pair)) != NULL) {
+		for (i = 0; i < sizeof(set_properties) / sizeof(*set_properties); ++i) {
+			if (strcmp(nvpair_name(pair), set_properties[i].propname))
+				continue;
+
+			if (nvpair_type(pair) == DATA_TYPE_BOOLEAN_VALUE &&
+			    !set_properties[i].can_unset) {
+				nvlist_add_string(resp, nvpair_name(pair), "This property cannot be unset");
+				goto done;
+			}
+
+			if (nvpair_type(pair) != set_properties[i].type &&
+			    nvpair_type(pair) != DATA_TYPE_BOOLEAN_VALUE) {
+				nvlist_add_string(resp, nvpair_name(pair), "Invalid type");
+				goto done;
+			}
+
+			if ((err = set_properties[i].handler(client, job, pair)) != NULL)
+				nvlist_add_string(resp, nvpair_name(pair), err);
+			goto done;
+		}
+
+		/* Property not found - see if it's an rctl */
+		if (is_valid_rctl(nvpair_name(pair))) {
+		uint64_t	value;
+			if (nvpair_type(pair) == DATA_TYPE_BOOLEAN_VALUE) {
+				if (job_clear_rctl(job, nvpair_name(pair)) == -1)
+					nvlist_add_string(resp, nvpair_name(pair), strerror(errno));
+			} else {
+				if (nvpair_type(pair) != DATA_TYPE_UINT64) {
+					nvlist_add_string(resp, nvpair_name(pair), "Invalid type for rctl");
+					continue;
+				}
+
+				if (nvpair_value_uint64(pair, &value)) {
+					nvlist_add_string(resp, nvpair_name(pair), "Internal error");
+					continue;
+				}
+
+				if (job_set_rctl(job, nvpair_name(pair), value) == -1)
+					nvlist_add_string(resp, nvpair_name(pair), strerror(errno));
+			}
+			continue;
+		}
+
+		nvlist_add_string(resp, nvpair_name(pair), "Invalid property");
+done:		;
+	}
+
+	(void) ctl_send_nvlist(client, resp);
+	nvlist_free(resp);
 }
 
 static void
@@ -1119,166 +1204,159 @@ ctl_close(client)
 }
 
 void
-c_lisr(client, args)
+c_list_rctls(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t		*job = args[0];
-char		*raws = args[1];
-int		 i;
+int		i;
+boolean_t	raw;
+nvlist_t	*rctls, *resp;
 
+	if (nvlist_lookup_boolean_value(args, "raw", &raw))
+		raw = 0;
+
+	nvlist_alloc(&rctls, NV_UNIQUE_NAME, 0);
+	nvlist_alloc(&resp, NV_UNIQUE_NAME, 0);
 	for (i = 0; i < job->job_nrctls; ++i) {
-		if (strcmp(raws, "RAWS") == 0)
-			(void) ctl_printf(client, "200 %s %llu\r\n",
+		if (raw)
+			nvlist_add_uint64(rctls,
 			    job->job_rctls[i].jr_name,
-			    (u_longlong_t)job->job_rctls[i].jr_value);
+			    job->job_rctls[i].jr_value);
 		else
-			(void) ctl_printf(client, "200 %s %s\r\n",
+			nvlist_add_string(rctls,
 			    job->job_rctls[i].jr_name,
 			    format_rctl(job->job_rctls[i].jr_value,
-			    get_rctl_type(job->job_rctls[i].jr_name)));
+				get_rctl_type(job->job_rctls[i].jr_name)));
 	}
 
-	(void) ctl_printf(client, "201 End of resource control list.\r\n");
+	nvlist_add_nvlist(resp, "rctls", rctls);
+	(void) ctl_send_nvlist(client, resp);
+	nvlist_free(resp);
+	nvlist_free(rctls);
 }
 
-void
-c_gcnf(client, args)
+static void
+c_get_config(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-char	*opt = args[0];
+nvlist_t *opts;
+nvpair_t *pair = NULL;
+nvlist_t *resp;
+	(void) job;
 
 	if (!client->cc_admin) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+		(void) ctl_error(client, "Permission denied");
 		return;
 	}
 
-	if (strcmp(opt, "jobs-per-user") == 0) {
-	int	njobs;
-		if ((njobs = quota_get_jobs_per_user()) == -1)
-			(void) ctl_printf(client,
-			    "500 Cannot get quota.\r\n");
-		else
-			(void) ctl_printf(client,
-			    "200 %d\r\n", njobs);
-	} else {
-		(void) ctl_printf(client, "500 Invalid parameter.\r\n");
-	}
-}
-
-void
-c_conf(client, args)
-	ctl_client_t	*client;
-	void		**args;
-{
-char	*opt = args[0];
-char	*value = args[1];
-
-	if (!client->cc_admin) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
+	if (nvlist_lookup_nvlist(args, "opts", &opts)) {
+		(void) ctl_error(client, "Option not specified");
 		return;
 	}
 
-	if (strcmp(opt, "jobs-per-user") == 0) {
-	int	 njobs;
-	char	*endp;
-
-		njobs = strtol(value, &endp, 10);
-		if (endp != (value + strlen(value)) || njobs < 0) {
-			(void) ctl_printf(client,
-			    "500 Invalid format.\r\n");
-			return;
+	nvlist_alloc(&resp, NV_UNIQUE_NAME, 0);
+	while ((pair = nvlist_next_nvpair(opts, pair)) != NULL) {
+		if (strcmp(nvpair_name(pair), "jobs-per-user") == 0) {
+		int	njobs;
+			if ((njobs = quota_get_jobs_per_user()) == -1) {
+				(void) ctl_error(client, strerror(errno));
+				return;
+			} else {
+				nvlist_add_uint32(resp, "jobs-per-user", njobs);
+			}
+		} else {
+			(void) ctl_error(client, "Invalid parameter");
 		}
-
-		if (quota_set_jobs_per_user(njobs) == -1)
-			(void) ctl_printf(client,
-			    "500 Cannot set quota.\r\n");
-		else
-			(void) ctl_printf(client,
-			    "200 OK.\r\n");
-	} else {
-		(void) ctl_printf(client, "500 Invalid parameter.\r\n");
 	}
+	(void) ctl_send_nvlist(client, resp);
+	nvlist_free(resp);
+}
+
+static void
+c_set_config(client, job, args)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvlist_t	*args;
+{
+nvpair_t	*pair = NULL;
+nvlist_t	*resp;
+nvlist_t	*opts;
+
+	(void) job;
+	if (!client->cc_admin) {
+		(void) ctl_error(client, "Permission denied");
+		return;
+	}
+
+	if (nvlist_alloc(&resp, NV_UNIQUE_NAME, 0)) {
+		(void) ctl_error(client, "Internal error");
+		return;
+	}
+
+	if (nvlist_lookup_nvlist(args, "opts", &opts)) {
+		(void) ctl_error(client, "Invalid request");
+		return;
+	}
+
+	while ((pair = nvlist_next_nvpair(opts, pair)) != NULL) {
+		if (strcmp(nvpair_name(pair), "jobs-per-user") == 0) {
+		uint32_t	njobs;
+			if (nvlist_lookup_uint32(args, "jobs-per-user", &njobs)) {
+				nvlist_add_string(resp, "jobs-per-user", "Invalid type");
+			if (quota_set_jobs_per_user((int) njobs) == -1)
+				nvlist_add_string(resp, "jobs-per-user", strerror(errno));
+			}
+		}
+	} 
+
+	(void) ctl_send_nvlist(client, resp);
+	nvlist_free(resp);
 }
 
 void
-c_strt(client, args)
+c_start(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t		*job = args[0];
-
+	(void) args;
 	if (!(job->job_flags & JOB_SCHEDULED)) {
-		(void) ctl_printf(client, "500 Only scheduled jobs "
-		    "can be manually started.\r\n");
+		(void) ctl_error(client, "Only scheduled jobs can be "
+		    "manually started");
 		return;
 	}
 
 	if (sched_start(job) == -1)
-		(void) ctl_printf(client, "500 Could not start job.\r\n");
+		(void) ctl_error(client, strerror(errno));
 	else
-		(void) ctl_printf(client, "200 OK.\r\n");
+		(void) ctl_message(client, "OK");
 }
 
-void
-c_uset(client, args)
+static void
+c_enable(client, job, args)
 	ctl_client_t	*client;
-	void		**args;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t		*job = args[0];
-char		*arg = args[1];
-
-	if (strcmp(arg, "start") == 0 ||
-	    strcmp(arg, "stop") == 0 ||
-	    strcmp(arg, "name") == 0 ||
-	    strcmp(arg, "enabled") == 0) {
-		(void) ctl_printf(client, "500 This option "
-		    "cannot be unset.\r\n");
-		return;
-	} else if (strcmp(arg, "project") == 0) {
-		if (job_set_project(job, NULL) == -1) {
-			(void) ctl_printf(client,
-			    "500 Could not change project.\r\n");
-			return;
-		}
-	} else if (is_valid_rctl(arg)) {
-		if (job_clear_rctl(job, arg) == -1) {
-			(void) ctl_printf(client,
-			    "500 Could not clear rctl.\r\n");
-			return;
-		}
-	} else {
-		(void) ctl_printf(client, "500 Invalid syntax.\r\n");
-		return;
-	}
-
-	(void) ctl_printf(client, "200 OK.\r\n");
+	(void) args;
+	if (job_enable(job) == -1)
+		(void) ctl_error(client, strerror(errno));
+	else
+		(void) ctl_message(client, "OK");
 }
 
-static job_t *
-next_job(str, client, action)
-	char		**str;
-	ctl_client_t	 *client;
-	int		  action;
+static void
+c_disable(client, job, args)
+	ctl_client_t	*client;
+	job_t		*job;
+	nvlist_t	*args;
 {
-job_t	*job = NULL;
-char	*fmri;
-
-	if ((fmri = next_word(str)) == NULL) {
-		(void) ctl_printf(client, "500 Missing FMRI.\r\n");
-		return (NULL);
-	}
-
-	if ((job = find_job_fmri(fmri)) == NULL) {
-		(void) ctl_printf(client, "500 Job not found.\r\n");
-		return (NULL);
-	}
-
-	if (!client->cc_admin && !job_access(job, client->cc_name, action)) {
-		(void) ctl_printf(client, "500 Permission denied.\r\n");
-		return (NULL);
-	}
-
-	return (job);
+	(void) args;
+	if (job_disable(job) == -1)
+		(void) ctl_error(client, strerror(errno));
+	else
+		(void) ctl_message(client, "OK");
 }

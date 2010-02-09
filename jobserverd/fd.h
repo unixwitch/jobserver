@@ -7,6 +7,7 @@
 #define	FD_H
 
 #include	<stdarg.h>
+#include	<libnvpair.h>
 #include	<port.h>
 
 typedef int fde_evt_type_t;
@@ -18,7 +19,7 @@ typedef void (*fde_callback) (int fde, fde_evt_type_t, void *);
 
 /*
  * Initialise the fd subsystem.  Should only be called once,
- * from main(0.
+ * from main().
  */
 int fd_init(int);
 
@@ -81,8 +82,15 @@ int fd_set_cloexec(int, int);
  * the data, including modify it, but it will be deallocated when the callback
  * returns.
  */
-typedef void (*fde_rl_callback) (int fd, char *, size_t, void *);
-int fd_readline(int fd, fde_rl_callback, void *);
+typedef void (*fde_rl_callback) (int, char *, size_t, void *);
+int fd_readline(int, fde_rl_callback, void *);
+
+/*
+ * Read an nvlist from an fd and call the notification function.  You cannot
+ * intermix nvlist and readline functions.
+ */
+typedef void (*fde_nvl_callback) (int, nvlist_t *, void *);
+int fd_readnvlist(int, fde_nvl_callback, void *);
 
 /*
  * Write data to the fd.
@@ -101,6 +109,9 @@ int fd_putln(int fd, char const *);
 
 /* Write unformatted data that could contain embedded nuls */
 int fd_write(int fd, char const *, size_t);
+
+/* Write a packed nvlist */
+int fd_write_nvlist(int, nvlist_t *, int);
 
 /* private to main() */
 void fd_handle_event(port_event_t *ev);

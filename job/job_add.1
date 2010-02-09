@@ -4,7 +4,7 @@ job add \- create a new job
 .SH SYNOPSIS
 .LP
 .nf
-\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBadd\fR [\fB-e\fR] [\fB-o\fR \fIproperty\fR\fB=\fR\fIvalue\fR] [\fB-S\fR \fIschedule\fR] [\fB-n\fR \fIname\fR] \fIcommand\fR
+\fB/opt/jobserver/bin/job\fR [\fB-D\fR] \fBadd\fR [\fB-e\fR] [\fB-o\fR \fIproperty\fR\fB=\fR\fIvalue\fR] [\fB-S\fR \fIschedule\fR] [\fIname\fR] \fIcommand\fR
 .fi
 
 .SH DESCRIPTION
@@ -12,7 +12,8 @@ job add \- create a new job
 The \fBjob add\fR command is used to create a new jobserver job (see
 \fBjob\fR(1)).  The new job will be created in the \fBdisabled\fR state (unless
 the \fB-e\fR or \fB-S\fR options are specified), and the job name will be set
-to \fIcommand\fR with everything up to the last \fB/\fR removed.  If
+to \fIcommand\fR with everything up to the last \fB/\fR removed, unless
+\fIname\fR is specified, in which case the name will be set to \fIname\fR.  If
 \fIcommand\fR contains spaces, a job name must be specified with \fB-n\fR, as
 job names may not contain spaces.
 

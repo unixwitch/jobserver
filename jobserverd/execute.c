@@ -194,7 +194,7 @@ char		 *s, *p;
 	if (job->job_logfmt)
 		logfile = logfmt(job->job_logfmt, job);
 	else
-		logfile = logfmt("%h/.job/%f.log", job);
+		logfile = logfmt(DEFAULT_LOGFMT, job);
 
 	if (logfile == NULL) {
 		logm(LOG_ERR, "start_job: could not create log format");
@@ -278,9 +278,6 @@ char		 *s, *p;
 	}
 
 	while ((s = index(p, '/')) != NULL) {
-		if (index(s + 1, '/') == NULL)
-			break;
-
 		*s = 0;
 		if (mkdir(p, 0700) == -1 && errno != EEXIST) {
 			logm(LOG_ERR, "mkdir(%s): %s", p, strerror(errno));

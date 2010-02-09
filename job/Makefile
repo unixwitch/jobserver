@@ -8,7 +8,7 @@ CSTYLE          = /opt/onbld/bin/cstyle
 CPPFLAGS	= -D_XOPEN_SOURCE=500 -D__EXTENSIONS__ 
 CFLAGS		= -xO0 -g -xc99=%none
 LDFLAGS		= 
-LIBS		= -lnsl -lcurses
+LIBS		= -lnsl -lcurses -lnvpair
 LINTFLAGS	= -axsmu -errchk=%all,no%longptr64 -errhdr=%user -errtags=yes -Ncheck -Nlevel -errtags=yes -Xc99=%none -errsecurity=core
 #LINTFLAGS	= -asxmu -erroff=E_EQUALITY_NOT_ASSIGNMENT
 CSTYLEFLAGS	= -cpP

@@ -16,9 +16,9 @@ LIBS		= -lnsl -lrt -lproject -lcontract -lnvpair -lcmd -lsecdb
 #LINTFLAGS	= -a -s -m -u -errchk=%all -Ncheck=%all -Nlevel=4 -errtags=yes -errsecurity=core
 LINTFLAGS	= -asxmu -errchk=%all,no%longptr64 -errtags=yes -Xc99=none -errsecurity=core -erroff=E_EQUALITY_NOT_ASSIGNMENT
 CSTYLEFLAGS	= -cpP
-OBJS	= main.o fd.o ctl.o buffer.o state.o sched.o event.o execute.o ct.o kvdb.o
+OBJS	= main.o fd.o ctl.o buffer.o state.o sched.o event.o execute.o ct.o kvdb.o jerrno.o
 SRCS	= $(OBJS:.o=.c)
-HDRS	= buffer.h ctl.h execute.h jobserver.h state.h ct.h event.h fd.h sched.h kvdb.h
+HDRS	= buffer.h ctl.h execute.h jobserver.h state.h ct.h event.h fd.h sched.h kvdb.h jerrno.h
 PROG	= jobserverd
 
 default: all

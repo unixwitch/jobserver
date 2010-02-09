@@ -25,6 +25,7 @@
 #include	"state.h"
 #include	"sched.h"
 #include	"queue.h"
+#include	"jerrno.h"
 
 #define	PROTOCOL_VERSION 1
 #define	ADMIN_AUTH_NAME "solaris.jobs.admin"
@@ -211,25 +212,25 @@ struct passwd	*pwd;
 
 	if (t_listen(fd, callp) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: t_listen: %s",
-				strerror(errno));
+				jstrerror(errno));
 		goto err;
 	}
 
 	if ((newfd = t_open("/dev/ticotsord", O_RDWR, NULL)) == NULL) {
 		logm(LOG_ERR, "ctl_client_accept: t_open: %s",
-				strerror(errno));
+				jstrerror(errno));
 		goto err;
 	}
 
 	if (t_bind(newfd, NULL, NULL) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: t_bind: %s",
-				strerror(errno));
+				jstrerror(errno));
 		goto err;
 	}
 
 	if (t_accept(fd, newfd, callp) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: t_accept: %s",
-				strerror(errno));
+				jstrerror(errno));
 		goto err;
 	}
 
@@ -238,32 +239,32 @@ struct passwd	*pwd;
 
 	if (fd_open(newfd) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: fd_open(%d): %s",
-				fd, strerror(errno));
+				fd, jstrerror(errno));
 		goto err;
 	}
 
 	if (fd_set_nonblocking(newfd, 1) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: "
 		    "fd_set_nonblocking(%d, %d): %s",
-		    newfd, 1, strerror(errno));
+		    newfd, 1, jstrerror(errno));
 		goto err;
 	}
 
 	if (fd_set_cloexec(newfd, 1) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: fd_set_cloexec(%d, %d): %s",
-		    newfd, 1, strerror(errno));
+		    newfd, 1, jstrerror(errno));
 		goto err;
 	}
 
 	if (getpeerucred(newfd, &ucred) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: getpeerucred: %s",
-		    strerror(errno));
+		    jstrerror(errno));
 		goto err;
 	}
 
 	if ((uid = ucred_geteuid(ucred)) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: ucred_getuid failed: %s",
-		    strerror(errno));
+		    jstrerror(errno));
 		goto err;
 	}
 
@@ -272,7 +273,7 @@ struct passwd	*pwd;
 
 	if ((c = new_client(newfd)) == NULL) {
 		logm(LOG_ERR, "ctl_client_accept: new_client: %s",
-		    strerror(errno));
+		    jstrerror(errno));
 		goto err;
 	}
 
@@ -296,7 +297,7 @@ struct passwd	*pwd;
 
 	if (fd_readnvlist(newfd, ctl_readnv, c) == -1) {
 		logm(LOG_ERR, "ctl_client_accept: fd_readnvlist(%d): %s",
-		    newfd, strerror(errno));
+		    newfd, jstrerror(errno));
 		goto err;
 	}
 
@@ -329,7 +330,7 @@ job_t		*job = NULL;
 	if (nvl == NULL) {
 		if (errno)
 			logm(LOG_DEBUG, "fd=%d client read error: %s",
-					fd, strerror(errno));
+					fd, jstrerror(errno));
 		ctl_close(client);
 		return;
 	}
@@ -456,40 +457,6 @@ int	 quota;
 		return;
 	}
 
-	/*
-	 * Ensure the job name is valid.  / is allowed, except not at the start
-	 * or end; double // is not allowed; any characters other than
-	 * [a-zA-Z0-9_-] is not allowed.
-	 */
-
-	for (p = name; *p; ++p) {
-		if (*p == '/') {
-			if (p == name) {
-				(void) ctl_error(client,
-				    "Job name cannot start with a /.");
-				return;
-			}
-
-			if (*(p + 1) == '/') {
-				(void) ctl_error(client,
-				    "Job name cannot contain //.\r\n");
-				return;
-			}
-		}
-
-		if (!isalnum(*p) && strchr("-_/", *p) == NULL) {
-			(void) ctl_error(client,
-			    "Job name contains invalid characters.");
-			return;
-		}
-	}
-
-	if (*(p - 1) == '/') {
-		(void) ctl_error(client,
-		    "Job name cannot end with a /.");
-		return;
-	}
-
 	if (quota = quota_get_jobs_per_user()) {
 		if (njobs_for_user(client->cc_name) >= quota) {
 			(void) ctl_error(client,
@@ -499,8 +466,7 @@ int	 quota;
 	}
 
 	if ((job = create_job(client->cc_name, name)) == NULL) {
-		(void) ctl_error(client,
-		    "Failed to allocate new job.");
+		(void) ctl_error(client, jstrerror(errno));
 		return;
 	}
 
@@ -516,14 +482,9 @@ c_delete(client, job, args)
 	nvlist_t	*args;
 {
 	(void) args;
-	if (sched_get_state(job) != SJOB_STOPPED) {
-		(void) ctl_error(client,
-		    "Cannot delete a running job.");
-		return;
-	}
 
 	if (delete_job(job) != 0)
-		(void) ctl_error(client, strerror(errno));
+		(void) ctl_error(client, jstrerror(errno));
 	else
 		(void) ctl_message(client, "OK");
 }
@@ -673,14 +634,9 @@ c_clear(client, job, args)
 	nvlist_t	*args;
 {
 	(void) args;
-	if (!(job->job_flags & JOB_MAINTENANCE)) {
-		(void) ctl_error(client,
-		    "Job is not in a maintenance state.");
-		return;
-	}
 
 	if (job_clear_maintenance(job) == -1)
-		ctl_error(client, strerror(errno));
+		ctl_error(client, jstrerror(errno));
 	else
 		ctl_message(client, "OK");
 }
@@ -692,13 +648,9 @@ c_unschedule(client, job, args)
 	nvlist_t	*args;
 {
 	(void) args;
-	if (!(job->job_flags & JOB_SCHEDULED)) {
-		(void) ctl_error(client, "Job is not scheduled.");
-		return;
-	}
 
 	if (job_unschedule(job) == -1)
-		(void) ctl_error(client, strerror(errno));
+		(void) ctl_error(client, jstrerror(errno));
 	else
 		(void) ctl_message(client, "OK");
 }
@@ -710,13 +662,9 @@ c_stop(client, job, args)
 	nvlist_t	*args;
 {
 	(void) args;
-	if (sched_get_state(job) != SJOB_RUNNING) {
-		(void) ctl_error(client, "Job is not running");
-		return;
-	}
 
 	if (sched_stop(job) == -1)
-		(void) ctl_error(client, strerror(errno));
+		(void) ctl_error(client, jstrerror(errno));
 	else
 		(void) ctl_message(client, "OK");
 }
@@ -734,13 +682,8 @@ char	*time;
 		return;
 	}
 
-	if (job->job_flags & JOB_ENABLED) {
-		(void) ctl_error(client, "Cannot schedule an enabled job");
-		return;
-	}
-
 	if (job_set_schedule(job, time) == -1)
-		(void) ctl_error(client, strerror(errno));
+		(void) ctl_error(client, jstrerror(errno));
 	else
 		(void) ctl_message(client, "OK");
 }
@@ -864,7 +807,7 @@ set_start_method(client, job, value)
 char	*method;
 	nvpair_value_string(value, &method);
 	if (job_set_start_method(job, method) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -878,7 +821,7 @@ char	*method = NULL;
 	if (nvpair_type(value) == DATA_TYPE_BOOLEAN)
 		nvpair_value_string(value, &method);
 	if (job_set_start_method(job, method) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -894,9 +837,6 @@ char const	*err = NULL;
 
 	nvpair_value_string(value, &fmri);
 
-	if (!valid_fmri(fmri))
-		return "Invalid FMRI";
-
 	if (asprintf(&pfx, "job:/%s/", client->cc_name) == -1) {
 		logm(LOG_ERR, "out of memory");
 		return "Internal error";
@@ -909,7 +849,7 @@ char const	*err = NULL;
 
 	free(pfx);
 	if (job_set_fmri(job, fmri) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -931,13 +871,8 @@ char const	*err = NULL;
 		return "Internal error";
 	}
 
-	if (!valid_fmri(fmri)) {
-		free(fmri);
-		return "Invalid name";
-	}
-
 	if (job_set_fmri(job, fmri) == -1)
-		err = strerror(errno);
+		err = jstrerror(errno);
 	free(fmri);
 	return err;
 }
@@ -955,7 +890,7 @@ char	*project;
 		nvpair_value_string(value, &project);
 
 	if (job_set_project(job, project) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -968,13 +903,13 @@ set_logfmt(client, job, value)
 char	*fmt;
 	if (nvpair_type(value) == DATA_TYPE_BOOLEAN) {
 		if (job_set_logfmt(job, NULL) == -1)
-			return strerror(errno);
+			return jstrerror(errno);
 		return NULL;
 	}
 
 	nvpair_value_string(value, &fmt);
 	if (job_set_logfmt(job, fmt) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -987,7 +922,7 @@ set_logkeep(client, job, value)
 uint16_t	logkeep;
 	nvpair_value_uint16(value, &logkeep);
 	if (job_set_logkeep(job, logkeep) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -1001,7 +936,7 @@ uint64_t	logsize;
 
 	nvpair_value_uint64(value, &logsize);
 	if (job_set_logsize(job, logsize) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -1033,7 +968,7 @@ char	*value;
 		return "Either restart or disable must be specified";
 
 	if (job_set_exit_action(job, action) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -1065,7 +1000,7 @@ char	*value;
 		return "Either restart or disable must be specified";
 
 	if (job_set_exit_action(job, action) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -1097,7 +1032,7 @@ int	 action = 0;
 		return "Either restart or disable must be specified";
 
 	if (job_set_exit_action(job, action) == -1)
-		return strerror(errno);
+		return jstrerror(errno);
 	return NULL;
 }
 
@@ -1165,7 +1100,7 @@ char const	*err;
 		uint64_t	value;
 			if (nvpair_type(pair) == DATA_TYPE_BOOLEAN_VALUE) {
 				if (job_clear_rctl(job, nvpair_name(pair)) == -1)
-					nvlist_add_string(resp, nvpair_name(pair), strerror(errno));
+					nvlist_add_string(resp, nvpair_name(pair), jstrerror(errno));
 			} else {
 				if (nvpair_type(pair) != DATA_TYPE_UINT64) {
 					nvlist_add_string(resp, nvpair_name(pair), "Invalid type for rctl");
@@ -1178,7 +1113,7 @@ char const	*err;
 				}
 
 				if (job_set_rctl(job, nvpair_name(pair), value) == -1)
-					nvlist_add_string(resp, nvpair_name(pair), strerror(errno));
+					nvlist_add_string(resp, nvpair_name(pair), jstrerror(errno));
 			}
 			continue;
 		}
@@ -1264,7 +1199,7 @@ nvlist_t *resp;
 		if (strcmp(nvpair_name(pair), "jobs-per-user") == 0) {
 		int	njobs;
 			if ((njobs = quota_get_jobs_per_user()) == -1) {
-				(void) ctl_error(client, strerror(errno));
+				(void) ctl_error(client, jstrerror(errno));
 				return;
 			} else {
 				nvlist_add_uint32(resp, "jobs-per-user", njobs);
@@ -1309,7 +1244,7 @@ nvlist_t	*opts;
 			if (nvlist_lookup_uint32(args, "jobs-per-user", &njobs)) {
 				nvlist_add_string(resp, "jobs-per-user", "Invalid type");
 			if (quota_set_jobs_per_user((int) njobs) == -1)
-				nvlist_add_string(resp, "jobs-per-user", strerror(errno));
+				nvlist_add_string(resp, "jobs-per-user", jstrerror(errno));
 			}
 		}
 	} 
@@ -1325,14 +1260,9 @@ c_start(client, job, args)
 	nvlist_t	*args;
 {
 	(void) args;
-	if (!(job->job_flags & JOB_SCHEDULED)) {
-		(void) ctl_error(client, "Only scheduled jobs can be "
-		    "manually started");
-		return;
-	}
 
 	if (sched_start(job) == -1)
-		(void) ctl_error(client, strerror(errno));
+		(void) ctl_error(client, jstrerror(errno));
 	else
 		(void) ctl_message(client, "OK");
 }
@@ -1345,7 +1275,7 @@ c_enable(client, job, args)
 {
 	(void) args;
 	if (job_enable(job) == -1)
-		(void) ctl_error(client, strerror(errno));
+		(void) ctl_error(client, jstrerror(errno));
 	else
 		(void) ctl_message(client, "OK");
 }
@@ -1358,7 +1288,7 @@ c_disable(client, job, args)
 {
 	(void) args;
 	if (job_disable(job) == -1)
-		(void) ctl_error(client, strerror(errno));
+		(void) ctl_error(client, jstrerror(errno));
 	else
 		(void) ctl_message(client, "OK");
 }

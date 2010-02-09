@@ -21,6 +21,7 @@
 #include	"state.h"
 #include	"sched.h"
 #include	"kvdb.h"
+#include	"jerrno.h"
 
 #define	DB_PATH "/var/jobserver"
 
@@ -62,14 +63,14 @@ int		nerrs = 0;
 		if (errno != ENOENT) {
 			logm(LOG_ERR, "statedb_init: "
 			    "cannot access database %s: %s",
-			    DB_PATH, strerror(errno));
+			    DB_PATH, jstrerror(errno));
 			return (-1);
 		}
 
 		if (mkdir(DB_PATH, 0700) == -1) {
 			logm(LOG_ERR, "statedb_init: "
 			    "cannot create database %s: %s",
-			    DB_PATH, strerror(errno));
+			    DB_PATH, jstrerror(errno));
 			return (-1);
 		}
 
@@ -78,25 +79,25 @@ int		nerrs = 0;
 
 	if ((db = kvdb_open(DB_PATH, KVDB_CREATE)) == -1) {
 		logm(LOG_ERR, "statedb_init: %s: %s",
-		    DB_PATH, strerror(errno));
+		    DB_PATH, jstrerror(errno));
 		goto err;
 	}
 
 	if ((table_jobs = kvtable_open(db, "jobs", KVT_CREATE)) == -1) {
 		logm(LOG_ERR, "statedb_init: %s: %s",
-		    "jobs", strerror(errno));
+		    "jobs", jstrerror(errno));
 		goto err;
 	}
 
 	if ((table_config = kvtable_open(db, "config", KVT_CREATE)) == -1) {
 		logm(LOG_ERR, "statedb_init: %s: %s",
-		    "jobs", strerror(errno));
+		    "jobs", jstrerror(errno));
 		goto err;
 	}
 
 	if (kvenumerate_nvlist(table_jobs, load_job_callback, &nerrs) == -1) {
 		logm(LOG_ERR, "statedb_init: kvenumerate: %s",
-		    strerror(errno));
+		    jstrerror(errno));
 		goto err;
 	}
 
@@ -234,7 +235,13 @@ char		*fmri = NULL;
 		goto err;
 	}
 
+	if (!valid_fmri(fmri)) {
+		errno = JEINVALID_FMRI;
+		goto err;
+	}
+
 	if ((job = find_job_fmri(fmri)) != NULL) {
+		errno = JEDUPLICATE_FMRI;
 		goto err;
 	}
 
@@ -396,6 +403,7 @@ job_t	*job = NULL;
 			return (job);
 	}
 
+	errno = JEJOB_NOT_FOUND;
 	return (NULL);
 
 }
@@ -458,6 +466,7 @@ char const	*p, *q;
 next:		;
 	}
 
+	errno = JEJOB_NOT_FOUND;
 	return (NULL);
 }
 
@@ -467,6 +476,11 @@ delete_job(job)
 {
 char	id[64];
 	(void) snprintf(id, sizeof (id), "%ld", (long)job->job_id);
+
+	if (sched_get_state(job) != SJOB_STOPPED) {
+		errno = JECANNOT_DELETE_RUNNING;
+		goto err;
+	}
 
 	if (kvtable_delete(table_jobs, id) == -1) {
 		logm(LOG_ERR, "delete_job: db del failed: %s",
@@ -606,8 +620,15 @@ job_set_fmri(job, fmri)
 char	*news;
 int	 ret;
 
-	if (find_job_fmri(fmri) != NULL)
+	if (!valid_fmri(fmri)) {
+		errno = JEINVALID_FMRI;
 		return (-1);
+	}
+
+	if (find_job_fmri(fmri) != NULL) {
+		errno = JEDUPLICATE_FMRI;
+		return (-1);
+	}
 
 	if ((news = strdup(fmri)) == NULL)
 		return (-1);
@@ -758,6 +779,11 @@ int
 job_unschedule(job)
 	job_t	*job;
 {
+	if (!(job->job_flags & JOB_SCHEDULED)) {
+		errno = JENOT_SCHEDULED;
+		return (-1);
+	}
+
 	job->job_flags &= ~(JOB_SCHEDULED | JOB_ENABLED);
 
 	/*
@@ -792,6 +818,11 @@ int
 job_clear_maintenance(job)
 	job_t	*job;
 {
+	if (!(job->job_flags & ~JOB_MAINTENANCE)) {
+		errno = JENOT_IN_MAINTENANCE;
+		return (-1);
+	}
+
 	job->job_flags &= ~JOB_MAINTENANCE;
 	if (job_update(job) == -1)
 		logm(LOG_ERR, "job_clear_maintenance: "
@@ -813,7 +844,7 @@ int	 i, j, y, mo, d, h, mi;
 char	 s[64];
 
 	if (job->job_flags & JOB_ENABLED) {
-		errno = EINVAL;
+		errno = JECANNOT_SCHEDULE_ENABLED;
 		goto err;
 	}
 
@@ -824,7 +855,7 @@ char	 s[64];
 		cron.cron_type = CRON_EVERY_MINUTE;
 	} else if (sscanf(sched, "every hour at %d", &i) == 1) {
 		if (i < 0 || i > 59) {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 
@@ -832,12 +863,12 @@ char	 s[64];
 		cron.cron_arg1 = i;
 	} else if (sscanf(sched, "every day at %d:%d", &i, &j) == 2) {
 		if (i < 0 || i > 24) {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 
 		if (j < 0 || j > 59) {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 
@@ -845,12 +876,12 @@ char	 s[64];
 		cron.cron_arg1 = (i * 60) + j;
 	} else if (sscanf(sched, "every %15s at %d:%d", s, &i, &j) == 3) {
 		if (i < 0 || i > 24) {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 
 		if (j < 0 || j > 59) {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 
@@ -872,7 +903,7 @@ char	 s[64];
 		else if (strcasecmp(s, "saturday") == 0)
 			cron.cron_arg1 = 6;
 		else {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 	} else if (sscanf(sched, "in %d %15s", &i, s) == 2) {
@@ -889,7 +920,7 @@ char	 s[64];
 			cron.cron_type = CRON_ABSOLUTE;
 			cron.cron_arg1 = current_time + (i * 60 * 60 * 24 * 7);
 		} else {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 	} else if (sscanf(sched, "at %d-%d-%d %d:%d",
@@ -905,7 +936,7 @@ char	 s[64];
 		cron.cron_arg1 = mktime(&tm);
 
 		if (cron.cron_arg1 < current_time) {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 	} else if (sscanf(sched, "at %d:%d", &h, &mi) == 2) {
@@ -921,11 +952,11 @@ char	 s[64];
 		}
 
 		if (cron.cron_arg1 < current_time) {
-			errno = EINVAL;
+			errno = JEINVALID_SCHEDULE;
 			goto err;
 		}
 	} else {
-		errno = EINVAL;
+		errno = JEINVALID_SCHEDULE;
 		goto err;
 	}
 
@@ -1088,6 +1119,7 @@ int	 i;
 		return (job->job_rctls[i].jr_value);
 	}
 
+	errno = JERCTL_NOT_FOUND;
 	return (-1);
 }
 
@@ -1098,11 +1130,13 @@ job_clear_rctl(job, name)
 {
 int		 i, j;
 job_rctl_t	*nr;
-int		 newn;
+int		 oldn, newn;
 
 	if (job->job_rctls == NULL) {
 		return (0);
 	}
+
+	oldn = job->job_nrctls;
 
 	/*
 	 * We could allocate nrctls-1 here, but we don't actually know if we'll
@@ -1122,16 +1156,20 @@ int		 newn;
 		j++;
 	}
 
-	free(job->job_rctls);
-	job->job_rctls = nr;
-	job->job_nrctls = newn;
+	if (oldn != newn) {
+		free(job->job_rctls);
+		job->job_rctls = nr;
+		job->job_nrctls = newn;
 
-	if (job_update(job) == -1) {
-		logm(LOG_ERR, "job_clear_rctl: job_update failed");
-		goto err;
+		if (job_update(job) == -1) {
+			logm(LOG_ERR, "job_clear_rctl: job_update failed");
+			goto err;
+		}
+
+		return (0);
 	}
 
-	return (0);
+	errno = JERCTL_NOT_FOUND;
 
 err:
 	free(nr);
@@ -1146,6 +1184,11 @@ job_set_rctl(job, name, value)
 {
 int		 i;
 job_rctl_t	*nr = NULL;
+
+	if (!is_valid_rctl(name)) {
+		errno = JEINVALID_RCTL;
+		return -1;
+	}
 
 	for (i = 0; i < job->job_nrctls; ++i) {
 		if (strcmp(job->job_rctls[i].jr_name, name))
@@ -1206,8 +1249,10 @@ rctlblk_t	*blk = alloca(rctlblk_size());
 uint_t		 fl;
 char		 rname[64];
 	(void) snprintf(rname, sizeof (rname), "process.%s", name);
-	if (getrctl(rname, NULL, blk, RCTL_FIRST) == -1)
-		return (RCTL_GLOBAL_COUNT);
+	if (getrctl(rname, NULL, blk, RCTL_FIRST) == -1) {
+		errno = JEINVALID_RCTL;
+		return (-1);
+	}
 
 	fl = rctlblk_get_global_flags(blk);
 	if (fl & RCTL_GLOBAL_BYTES)
@@ -1355,6 +1400,11 @@ job_set_logkeep(job, logkeep)
 {
 	assert(job);
 
+	if (logkeep < 0) {
+		errno = EINVAL;
+		return (-1);
+	}
+
 	job->job_logkeep = logkeep;
 	if (job_update(job) == -1) {
 		logm(LOG_ERR, "job_set_logkeep: job_update failed");
@@ -1370,6 +1420,11 @@ job_set_logsize(job, logsize)
 	size_t	logsize;
 {
 	assert(job);
+
+	if (logsize < 0) {
+		errno = EINVAL;
+		return (-1);
+	}
 
 	job->job_logsize = logsize;
 	if (job_update(job) == -1) {
@@ -1395,8 +1450,10 @@ char	*np = NULL;
 		/*
 		 * Make sure the user is actually in the project.
 		 */
-		if (!inproj(job->job_username, proj, nssbuf, sizeof (nssbuf)))
+		if (!inproj(job->job_username, proj, nssbuf, sizeof (nssbuf))) {
+			errno = JEUSER_NOT_IN_PROJECT;
 			goto err;
+		}
 
 		if ((np = strdup(proj)) == NULL) {
 			logm(LOG_ERR, "job_set_project: out of memory");

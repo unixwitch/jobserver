@@ -28,6 +28,7 @@
 #include	"jobserver.h"
 #include	"fd.h"
 #include	"execute.h"
+#include	"jerrno.h"
 
 static LIST_HEAD(sjob_list, sjob) sjobs;
 
@@ -235,6 +236,11 @@ sjob_t		*sjob = NULL;
 	if ((sjob = sjob_find(job->job_id)) == NULL)
 		goto err;
 
+	if (sjob->sjob_state != SJOB_RUNNING) {
+		errno = JENOT_RUNNING;
+		goto err;
+	}
+
 	/*
 	 * If there's no stop method defined, just send SIGTERM to the
 	 * process contract.  Otherwise, execute the user's stop method.
@@ -280,6 +286,11 @@ sched_start(job)
 	job_t	*job;
 {
 sjob_t		*sjob = NULL;
+
+	if (!(job->job_flags & JOB_SCHEDULED)) {
+		errno = JENOT_SCHEDULED;
+		goto err;
+	}
 
 	if ((sjob = sjob_find(job->job_id)) == NULL)
 		goto err;
